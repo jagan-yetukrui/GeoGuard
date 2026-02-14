@@ -1,9 +1,14 @@
 """
 Gemini-powered 911-style chat: answers user questions using current disaster/plan context.
 """
+import logging
+
 from app.settings import get_gemini_api_key
 
+logger = logging.getLogger(__name__)
+
 GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_FALLBACK_MODEL = "gemini-1.5-flash"
 
 
 def chat_with_disaster_context(
@@ -22,12 +27,17 @@ def chat_with_disaster_context(
     Returns the model reply or None if unavailable.
     """
     key = get_gemini_api_key()
-    if not key or not (message or "").strip():
+    if not key:
+        logger.warning("Chat: GEMINI_API_KEY not set")
+        return None
+    msg_stripped = (message or "").strip()
+    if not msg_stripped:
+        logger.warning("Chat: empty message received")
         return None
     try:
         import google.generativeai as genai
+
         genai.configure(api_key=key)
-        model = genai.GenerativeModel(GEMINI_MODEL)
 
         context_parts = []
         if quake_place or quake_mag is not None:
@@ -51,15 +61,36 @@ def chat_with_disaster_context(
 Disaster context:
 {context_blob}
 
-User question: {message.strip()}
+User question: {msg_stripped}
 
 Reply (plain text, no markdown):"""
 
-        response = model.generate_content(prompt)
-        if not response or not response.text:
-            return None
-        return response.text.strip()
+        for model_name in (GEMINI_MODEL, GEMINI_FALLBACK_MODEL):
+            try:
+                model = genai.GenerativeModel(model_name)
+                response = model.generate_content(prompt)
+                if response and getattr(response, "text", None):
+                    return response.text.strip()
+                # Empty or blocked response
+                block_reason = ""
+                if response:
+                    if getattr(response, "prompt_feedback", None) and getattr(
+                        response.prompt_feedback, "block_reason", None
+                    ):
+                        block_reason = f" block_reason={response.prompt_feedback.block_reason}"
+                    if getattr(response, "candidates", None) and len(response.candidates):
+                        c = response.candidates[0]
+                        if getattr(c, "finish_reason", None):
+                            block_reason += f" finish_reason={c.finish_reason}"
+                logger.warning(
+                    "Chat: Gemini returned no text (model=%s)%s",
+                    model_name,
+                    block_reason or " (no candidates or feedback)",
+                )
+            except Exception as e:
+                logger.warning("Chat: Gemini failed with model %s: %s", model_name, e)
+                continue
+        return None
     except Exception as e:
-        import logging
-        logging.getLogger(__name__).warning("Gemini chat failed: %s", e)
+        logger.warning("Gemini chat failed: %s", e, exc_info=True)
         return None

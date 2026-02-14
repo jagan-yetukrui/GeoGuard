@@ -45,6 +45,14 @@ class InfraNodeOut(BaseModel):
     lng: float
 
 
+class ZonePoiOut(BaseModel):
+    name: str
+    type: str
+    lat: float
+    lng: float
+    zone_level: Literal["high", "medium", "low"]
+
+
 class AnalyzeBody(BaseModel):
     quake_id: str | None = None
     lat: float | None = None
@@ -176,3 +184,4 @@ class PlanResponse(BaseModel):
     zones_geojson: dict[str, Any] | None = None
     safe_points: list[SafePointOut] | None = None
     infra_nodes: list[InfraNodeOut] | None = None
+    zone_pois: dict[str, list[ZonePoiOut]] | None = None  # keys: high, medium, low

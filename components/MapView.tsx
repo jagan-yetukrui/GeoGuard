@@ -11,6 +11,7 @@ import type {
   ZonesGeoJSON,
   SafePoint,
   InfraNode,
+  ZonePoi,
 } from "@/lib/types";
 import {
   radiusKmToMeters,
@@ -27,6 +28,7 @@ export type MapViewProps = {
   zonesGeoJSON?: ZonesGeoJSON | null;
   safePoints?: SafePoint[] | null;
   infraNodes?: InfraNode[] | null;
+  zonePois?: { high: ZonePoi[]; medium: ZonePoi[]; low: ZonePoi[] } | null;
 };
 
 const ZONE_COLORS: Record<
@@ -59,6 +61,36 @@ const STATION_TYPE_LABELS: Record<string, string> = {
   shelter: "Shelter",
   command: "Command post",
 };
+
+const ZONE_POI_TYPE_LABELS: Record<string, string> = {
+  hospital: "Hospital",
+  shelter: "Shelter",
+  park: "Park",
+  open_area: "Open area",
+};
+
+const ZONE_POI_ZONE_LABELS: Record<string, string> = {
+  high: "Red zone",
+  medium: "Yellow zone",
+  low: "Green zone",
+};
+
+function createZonePoiMarkerElement(zoneLevel: "high" | "medium" | "low"): HTMLDivElement {
+  const colors: Record<string, string> = {
+    high: "#ef4444",
+    medium: "#f59e0b",
+    low: "#10b981",
+  };
+  const el = document.createElement("div");
+  el.className = "zone-poi-marker";
+  el.style.width = "14px";
+  el.style.height = "14px";
+  el.style.borderRadius = "50%";
+  el.style.background = colors[zoneLevel] ?? colors.low;
+  el.style.border = `2px solid ${colors[zoneLevel] ?? colors.low}`;
+  el.style.boxShadow = "0 1px 2px rgba(0,0,0,0.3)";
+  return el;
+}
 
 function createQuakeMarkerElement(): HTMLDivElement {
   const el = document.createElement("div");
@@ -113,6 +145,7 @@ export function MapView({
   zonesGeoJSON,
   safePoints,
   infraNodes,
+  zonePois,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -125,6 +158,7 @@ export function MapView({
   const stationMarkersRef = useRef<L.Marker[]>([]);
   const safePointMarkersRef = useRef<L.Marker[]>([]);
   const infraMarkersRef = useRef<L.Marker[]>([]);
+  const zonePoisMarkersRef = useRef<L.Marker[]>([]);
   const [mapReady, setMapReady] = useState(false);
   const [plateDataReady, setPlateDataReady] = useState(false);
   const plateGeoJSONRef = useRef<GeoJSON.FeatureCollection | null>(null);
@@ -211,6 +245,8 @@ export function MapView({
       safePointMarkersRef.current = [];
       infraMarkersRef.current.forEach((m) => m.remove());
       infraMarkersRef.current = [];
+      zonePoisMarkersRef.current.forEach((m) => m.remove());
+      zonePoisMarkersRef.current = [];
       if (mapRef.current) {
         mapRef.current.remove();
         mapRef.current = null;
@@ -308,6 +344,8 @@ export function MapView({
     safePointMarkersRef.current = [];
     infraMarkersRef.current.forEach((m) => m.remove());
     infraMarkersRef.current = [];
+    zonePoisMarkersRef.current.forEach((m) => m.remove());
+    zonePoisMarkersRef.current = [];
   }, []);
 
   useEffect(() => {
@@ -381,6 +419,28 @@ export function MapView({
         opacity: 0.95,
       });
       infraMarkersRef.current.push(marker);
+    });
+
+    (["high", "medium", "low"] as const).forEach((level) => {
+      const list = zonePois?.[level] ?? [];
+      list.forEach((poi) => {
+        const el = createZonePoiMarkerElement(poi.zoneLevel);
+        const marker = L.marker([poi.lat, poi.lng], {
+          icon: L.divIcon({
+            html: el.outerHTML,
+            className: "leaflet-zone-poi-marker",
+            iconSize: [14, 14],
+            iconAnchor: [7, 7],
+          }),
+        }).addTo(map);
+        const typeLabel = ZONE_POI_TYPE_LABELS[poi.type] ?? poi.type;
+        const zoneLabel = ZONE_POI_ZONE_LABELS[poi.zoneLevel] ?? poi.zoneLevel;
+        marker.bindTooltip(
+          `<strong>${poi.name}</strong><br/>${typeLabel} · ${zoneLabel}`,
+          { direction: "top", opacity: 0.95 }
+        );
+        zonePoisMarkersRef.current.push(marker);
+      });
     });
 
     routes.forEach((route) => {
@@ -465,6 +525,7 @@ export function MapView({
     zonesGeoJSON,
     safePoints,
     infraNodes,
+    zonePois,
     stations,
     routes,
     removePlanLayers,

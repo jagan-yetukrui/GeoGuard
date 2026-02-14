@@ -152,6 +152,14 @@ interface InfraNodeOut {
   lng: number;
 }
 
+interface ZonePoiOut {
+  name: string;
+  type: string;
+  lat: number;
+  lng: number;
+  zone_level: "high" | "medium" | "low";
+}
+
 interface PlanResponse {
   zones: ZoneOut[];
   help_stations: HelpStationOut[];
@@ -167,6 +175,7 @@ interface PlanResponse {
   zones_geojson?: unknown | null;
   safe_points?: SafePointOut[] | null;
   infra_nodes?: InfraNodeOut[] | null;
+  zone_pois?: { high: ZonePoiOut[]; medium: ZonePoiOut[]; low: ZonePoiOut[] } | null;
 }
 
 export async function getLiveQuake(): Promise<QuakeEvent> {
@@ -202,6 +211,13 @@ export async function generatePlan(quakeId: string): Promise<ResponsePlan> {
     zonesGeoJSON: (data.zones_geojson as ResponsePlan["zonesGeoJSON"]) ?? undefined,
     safePoints: data.safe_points ?? undefined,
     infraNodes: data.infra_nodes ?? undefined,
+    zonePois: data.zone_pois
+      ? {
+          high: data.zone_pois.high.map((p) => ({ name: p.name, type: p.type, lat: p.lat, lng: p.lng, zoneLevel: p.zone_level })),
+          medium: data.zone_pois.medium.map((p) => ({ name: p.name, type: p.type, lat: p.lat, lng: p.lng, zoneLevel: p.zone_level })),
+          low: data.zone_pois.low.map((p) => ({ name: p.name, type: p.type, lat: p.lat, lng: p.lng, zoneLevel: p.zone_level })),
+        }
+      : undefined,
   };
 }
 

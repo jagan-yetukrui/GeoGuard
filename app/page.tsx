@@ -146,6 +146,7 @@ export default function Home() {
           zonesGeoJSON={plan?.zonesGeoJSON}
           safePoints={plan?.safePoints}
           infraNodes={plan?.infraNodes}
+          zonePois={plan?.zonePois}
         />
       </div>
       <div className="w-full shrink-0 border-t border-border lg:h-full lg:w-[30%] lg:min-w-[320px] lg:border-l lg:border-t-0">

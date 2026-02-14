@@ -1,12 +1,11 @@
 """
-Help stations (3-6) and routes (2-4). Prefer polygon edges and infra; fallback to offset circles.
-Routes: straight-line polylines with name and reason (estimated routes).
+Help stations and routes. Only real locations (OSM/Places infra) are used—no synthetic or estimated positions.
+If no real infra is found on land, returns empty list; never invents locations.
 """
 import math
 from typing import Any, Literal
 
-STATION_NAMES = ("Station Alpha", "Station Bravo", "Station Charlie", "Station Delta", "Station Echo", "Station Foxtrot")
-STATION_TYPES: tuple[Literal["medical", "shelter", "comms", "supply"], ...] = ("medical", "shelter", "comms", "supply")
+from app.landmask import is_land
 
 INFRA_TYPE_MAP = {
     "hospital": "medical",
@@ -27,47 +26,6 @@ def _offset_km_to_lat_lng(lat: float, lng: float, km: float, bearing_deg: float)
     return new_lat, new_lng
 
 
-def _haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
-    R = 6371.0
-    dlat = math.radians(lat2 - lat1)
-    dlng = math.radians(lng2 - lng1)
-    a = (
-        math.sin(dlat / 2) ** 2
-        + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlng / 2) ** 2
-    )
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-    return R * c
-
-
-def _sample_polygon_boundary(features: list[dict], level: str, n_points: int) -> list[tuple[float, float]]:
-    """Sample (lat, lng) points on boundary of the first feature with given level."""
-    points: list[tuple[float, float]] = []
-    for f in features:
-        if f.get("properties", {}).get("level") != level:
-            continue
-        geom = f.get("geometry") or {}
-        coords = geom.get("coordinates", [])
-        if geom.get("type") == "Polygon" and coords:
-            ring = coords[0]
-            step = max(1, len(ring) // n_points)
-            for i in range(0, len(ring), step):
-                lng, lat = ring[i][0], ring[i][1]
-                points.append((lat, lng))
-                if len(points) >= n_points:
-                    return points[:n_points]
-        elif geom.get("type") == "MultiPolygon":
-            for part in coords:
-                if part and part[0]:
-                    ring = part[0]
-                    step = max(1, len(ring) // n_points)
-                    for i in range(0, len(ring), step):
-                        lng, lat = ring[i][0], ring[i][1]
-                        points.append((lat, lng))
-                        if len(points) >= n_points:
-                            return points[:n_points]
-    return points
-
-
 def generate_stations(
     center_lat: float,
     center_lng: float,
@@ -77,94 +35,31 @@ def generate_stations(
     zones_geojson: dict[str, Any] | None = None,
     infra_nodes: list[dict[str, Any]] | None = None,
 ) -> list[dict]:
-    stations = []
+    """
+    Return only real help stations from infra (OSM/Google Places). On-land only.
+    Never invents or estimates positions; if no real locations found, returns [].
+    """
+    stations: list[dict] = []
     infra = infra_nodes or []
-    features = (zones_geojson or {}).get("features") or []
-
-    if features and len(features) >= 2:
-        boundary_high = _sample_polygon_boundary(features, "high", 3)
-        boundary_med = _sample_polygon_boundary(features, "medium", 3)
-        candidates: list[dict] = []
-        for i, (lat, lng) in enumerate(boundary_high):
-            candidates.append({
-                "name": STATION_NAMES[min(i, len(STATION_NAMES) - 1)],
-                "lat": lat, "lng": lng,
-                "type": "medical",
-                "reason": "Near high-risk zone edge",
-            })
-        for i, (lat, lng) in enumerate(boundary_med):
-            candidates.append({
-                "name": STATION_NAMES[min(len(candidates), len(STATION_NAMES) - 1)],
-                "lat": lat, "lng": lng,
-                "type": "shelter",
-                "reason": "Near medium-risk zone edge",
-            })
-        for node in infra[: max(0, max_stations - len(candidates))]:
-            candidates.append({
-                "name": node.get("name", "Infra")[:80],
-                "lat": node["lat"], "lng": node["lng"],
-                "type": INFRA_TYPE_MAP.get(node.get("type", "other"), "supply"),
-                "reason": f"OSM: {node.get('type', 'infra')}",
-            })
-        n = min(max_stations, len(STATION_NAMES), max(3, len(candidates)))
-        for i in range(n):
-            if i < len(candidates):
-                c = candidates[i]
-                stations.append({
-                    "name": str(c["name"])[:80],
-                    "lat": round(c["lat"], 5),
-                    "lng": round(c["lng"], 5),
-                    "type": c["type"],
-                    "reason": c["reason"],
-                })
-            else:
-                bearing = 360.0 * i / max(n, 1)
-                radius = high_km * 0.7 if i % 2 == 0 else med_km * 0.5
-                radius = max(radius, 2.0)
-                lat, lng = _offset_km_to_lat_lng(center_lat, center_lng, radius, bearing)
-                stype = STATION_TYPES[i % len(STATION_TYPES)]
-                stations.append({
-                    "name": STATION_NAMES[i],
-                    "lat": round(lat, 5),
-                    "lng": round(lng, 5),
-                    "type": stype,
-                    "reason": f"Positioned at {radius:.0f} km for zone coverage.",
-                })
-    else:
-        n = min(max_stations, 6, len(STATION_NAMES))
-        step_deg = 360.0 / max(n, 1)
-        for i in range(n):
-            bearing = i * step_deg
-            radius = high_km * 0.7 if i % 2 == 0 else med_km * 0.5
-            radius = max(radius, 2.0)
-            slat, slng = _offset_km_to_lat_lng(center_lat, center_lng, radius, bearing)
-            stype = STATION_TYPES[i % len(STATION_TYPES)]
-            reason = f"Positioned at {radius:.0f} km for zone coverage and access redundancy."
-            stations.append({
-                "name": STATION_NAMES[i],
-                "lat": round(slat, 5),
-                "lng": round(slng, 5),
-                "type": stype,
-                "reason": reason,
-            })
-
-    if len(stations) < max_stations and infra:
-        used = {(s["lat"], s["lng"]) for s in stations}
-        for node in infra:
-            if len(stations) >= max_stations:
-                break
-            key = (round(node["lat"], 5), round(node["lng"], 5))
-            if key in used:
-                continue
-            used.add(key)
-            stations.append({
-                "name": node.get("name", "Infra")[:80],
-                "lat": round(node["lat"], 5),
-                "lng": round(node["lng"], 5),
-                "type": INFRA_TYPE_MAP.get(node.get("type", "other"), "supply"),
-                "reason": f"OSM infrastructure: {node.get('type', 'facility')}",
-            })
-    return stations[:max_stations]
+    seen: set[tuple[float, float]] = set()
+    for node in infra:
+        if len(stations) >= max_stations:
+            break
+        if not is_land(node["lat"], node["lng"]):
+            continue
+        key = (round(node["lat"], 5), round(node["lng"], 5))
+        if key in seen:
+            continue
+        seen.add(key)
+        name = (node.get("name") or "Unnamed")[:80]
+        stations.append({
+            "name": name,
+            "lat": round(node["lat"], 5),
+            "lng": round(node["lng"], 5),
+            "type": INFRA_TYPE_MAP.get(node.get("type", "other"), "supply"),
+            "reason": f"Real location: {node.get('type', 'facility')}",
+        })
+    return stations
 
 
 def generate_routes(

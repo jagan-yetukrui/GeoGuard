@@ -29,6 +29,7 @@ from app.schemas import (
     HelpStationOut,
     SafePointOut,
     InfraNodeOut,
+    ZonePoiOut,
     RouteOut,
 )
 from app.usgs import get_live_quake
@@ -163,6 +164,8 @@ def plan(body: PlanBody):
         plate_km = min(plate_km, 20000.0)
     motion_proxy = get_plate_motion_proxy(plate_km)
     infra_nodes_list, infra_ok = fetch_infra_nodes(lat, lng)
+    from app.landmask import filter_land_points
+    infra_nodes_list = filter_land_points(infra_nodes_list, lat_key="lat", lng_key="lng")
     infra_count = len(infra_nodes_list)
     density_proxy = get_density_proxy(lat, lng, infra_nodes_list)
     centers = _cell_centers(lat, lng)
@@ -185,12 +188,27 @@ def plan(body: PlanBody):
         grid_explanation["density_method"] = "overpass_infra_count"
     else:
         grid_explanation["density_method"] = "placeholder"
-    zones_geojson, safe_points_list = polygonize_grid(cells, RESOLUTION_KM)
-    safe_points_out = [SafePointOut(lat=p["lat"], lng=p["lng"], reason=p["reason"]) for p in safe_points_list]
+    zones_geojson, _safe_points_list = polygonize_grid(cells, RESOLUTION_KM)
+    # Only real locations are shown; grid-derived safe points are not real POIs, so return none
+    safe_points_out: list[SafePointOut] = []
 
     zones, explanation_zoning = _plan_zoning_fallback(mag, depth_km, plate_km, lat, lng, motion_proxy)
     high_km = next(z["radius_km"] for z in zones if z["level"] == "high")
     med_km = next(z["radius_km"] for z in zones if z["level"] == "medium")
+    low_km = next(z["radius_km"] for z in zones if z["level"] == "low")
+
+    zone_pois_dict: dict[str, list[ZonePoiOut]] | None = None
+    try:
+        from app.zone_pois import compute_zone_pois
+        raw_zone_pois = compute_zone_pois(
+            zones_geojson, lat, lng, high_km, med_km, low_km
+        )
+        zone_pois_dict = {
+            level: [ZonePoiOut(name=p["name"], type=p["type"], lat=p["lat"], lng=p["lng"], zone_level=level) for p in raw_zone_pois[level]]
+            for level in ("high", "medium", "low")
+        }
+    except Exception:
+        zone_pois_dict = None
 
     max_stations = 6
     if body.constraints and body.constraints.max_stations is not None:
@@ -201,6 +219,10 @@ def plan(body: PlanBody):
     )
     route_dicts = generate_routes(lat, lng, high_km, stations)
 
+    explanation_notes = grid_explanation.get("notes") or ""
+    if len(stations) == 0:
+        explanation_notes = (explanation_notes + " No real help stations (hospitals, shelters, etc.) found on land in this area—check zone POIs or expand search.").strip()
+
     explanation = ExplanationOut(
         why_radii=explanation_zoning["why_radii"],
         key_factors=explanation_zoning["key_factors"],
@@ -210,7 +232,7 @@ def plan(body: PlanBody):
         density_method=grid_explanation.get("density_method"),
         infra_count=grid_explanation.get("infra_count"),
         similar_quakes_used=grid_explanation.get("similar_quakes_used"),
-        notes=grid_explanation.get("notes"),
+        notes=explanation_notes or None,
     )
 
     if damage_score > 75:
@@ -255,6 +277,7 @@ def plan(body: PlanBody):
         zones_geojson=zones_geojson,
         safe_points=safe_points_out,
         infra_nodes=[InfraNodeOut(name=n["name"], type=n["type"], lat=n["lat"], lng=n["lng"]) for n in infra_nodes_list],
+        zone_pois=zone_pois_dict,
     )
 
 
@@ -348,7 +371,10 @@ def assistant_voice_intro(body: VoiceIntroBody):
     from app.settings import get_gemini_api_key
     from app.assistant import generate_voice_intro
     if not get_gemini_api_key():
-        raise HTTPException(status_code=503, detail="Set GEMINI_API_KEY to enable voice assistant.")
+        raise HTTPException(
+            status_code=503,
+            detail="Set GEMINI_API_KEY and ELEVENLABS_API_KEY in backend/.env to enable voice assistant.",
+        )
     script = generate_voice_intro(
         quake_place=body.quake_place or "",
         quake_mag=body.quake_mag,

@@ -67,6 +67,14 @@ export interface InfraNode {
   lng: number;
 }
 
+export interface ZonePoi {
+  name: string;
+  type: string;
+  lat: number;
+  lng: number;
+  zoneLevel: "high" | "medium" | "low";
+}
+
 export interface ZonesGeoJSON {
   type: "FeatureCollection";
   features: Array<{
@@ -90,4 +98,5 @@ export interface ResponsePlan {
   zonesGeoJSON?: ZonesGeoJSON | null;
   safePoints?: SafePoint[] | null;
   infraNodes?: InfraNode[] | null;
+  zonePois?: { high: ZonePoi[]; medium: ZonePoi[]; low: ZonePoi[] } | null;
 }

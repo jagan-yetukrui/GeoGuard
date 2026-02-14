@@ -46,6 +46,22 @@ out center;
 """
 
 
+def _build_parks_open_query(south: float, west: float, north: float, east: float) -> str:
+    """Parks and open areas: leisure=park, landuse=grass, landuse=recreation_ground."""
+    return f"""
+[out:json][timeout:25];
+(
+  node({south},{west},{north},{east})["leisure"="park"];
+  node({south},{west},{north},{east})["landuse"="grass"];
+  node({south},{west},{north},{east})["landuse"="recreation_ground"];
+  way({south},{west},{north},{east})["leisure"="park"];
+  way({south},{west},{north},{east})["landuse"="grass"];
+  way({south},{west},{north},{east})["landuse"="recreation_ground"];
+);
+out center;
+"""
+
+
 def _parse_element(el: dict, osm_type: str) -> dict[str, Any] | None:
     lat, lng = None, None
     if osm_type == "node":
@@ -76,6 +92,98 @@ def _parse_element(el: dict, osm_type: str) -> dict[str, Any] | None:
     else:
         type_ = amenity or "other"
     return {"name": str(name)[:100], "type": type_, "lat": float(lat), "lng": float(lng)}
+
+
+def _parse_park_element(el: dict, osm_type: str) -> dict[str, Any] | None:
+    """Parse OSM element for park/open area; return {name, type: park|open_area, lat, lng} or None."""
+    lat, lng = None, None
+    if osm_type == "node":
+        lat = el.get("lat")
+        lng = el.get("lon")
+    else:
+        center = el.get("center", {})
+        lat = center.get("lat")
+        lng = center.get("lng")
+    if lat is None or lng is None:
+        return None
+    tags = el.get("tags") or {}
+    name = tags.get("name") or tags.get("leisure") or tags.get("landuse") or "Unnamed"
+    leisure = tags.get("leisure", "")
+    landuse = tags.get("landuse", "")
+    if leisure == "park" or "park" in str(name).lower():
+        type_ = "park"
+    elif landuse in ("grass", "recreation_ground") or leisure:
+        type_ = "open_area"
+    else:
+        type_ = "open_area"
+    return {"name": str(name)[:100], "type": type_, "lat": float(lat), "lng": float(lng)}
+
+
+def fetch_zone_pois_candidates(
+    lat: float, lng: float, half_km: float = 50.0
+) -> tuple[list[dict[str, Any]], bool]:
+    """
+    Fetch all POI candidates for zone display: infra (hospital, shelter, etc.) plus parks/open areas.
+    Returns (list of {name, type, lat, lng}, success). Types normalized to hospital, shelter, park, open_area.
+    """
+    south, west, north, east = _bbox_around(lat, lng, half_km)
+    cache_key = f"zone_pois:{south:.4f},{west:.4f},{north:.4f},{east:.4f}"
+    now = time.monotonic()
+    if cache_key in _cache and (now - _cache_time) < CACHE_TTL_SECONDS:
+        return _cache[cache_key]
+
+    merged: list[dict[str, Any]] = []
+    seen: set[tuple[float, float]] = set()
+
+    # 1) Infra: hospital, clinic, ambulance -> hospital; shelter -> shelter; drop fire_station/police for zone POIs
+    try:
+        query_infra = _build_infra_query(south, west, north, east)
+        with httpx.Client(timeout=30.0) as client:
+            r = client.post(OVERPASS_URL, content=query_infra)
+            r.raise_for_status()
+            data = r.json()
+        for el in data.get("elements", []):
+            osm_type = el.get("type", "node")
+            parsed = _parse_element(el, osm_type)
+            if not parsed:
+                continue
+            t = parsed["type"]
+            if t in ("hospital", "clinic", "ambulance"):
+                parsed["type"] = "hospital"
+            elif t != "shelter":
+                continue  # skip fire_station, police for zone POIs
+            key_pt = (round(parsed["lat"], 5), round(parsed["lng"], 5))
+            if key_pt in seen:
+                continue
+            seen.add(key_pt)
+            merged.append(parsed)
+    except (httpx.HTTPError, ValueError, KeyError):
+        pass
+
+    # 2) Parks and open areas
+    try:
+        query_parks = _build_parks_open_query(south, west, north, east)
+        with httpx.Client(timeout=30.0) as client:
+            r = client.post(OVERPASS_URL, content=query_parks)
+            r.raise_for_status()
+            data = r.json()
+        for el in data.get("elements", []):
+            osm_type = el.get("type", "node")
+            parsed = _parse_park_element(el, osm_type)
+            if not parsed:
+                continue
+            key_pt = (round(parsed["lat"], 5), round(parsed["lng"], 5))
+            if key_pt in seen:
+                continue
+            seen.add(key_pt)
+            merged.append(parsed)
+    except (httpx.HTTPError, ValueError, KeyError):
+        pass
+
+    merged.sort(key=lambda n: (n["lat"], n["lng"]))
+    _cache[cache_key] = (merged, True)
+    _cache_time = now
+    return merged, True
 
 
 def fetch_infra_nodes(lat: float, lng: float) -> tuple[list[dict[str, Any]], bool]:

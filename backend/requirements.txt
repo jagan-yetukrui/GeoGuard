@@ -9,3 +9,4 @@ pandas>=2.0.0
 openpyxl>=3.1.0
 google-generativeai>=0.8.0
 elevenlabs>=1.0.0
+global-land-mask>=0.0.6

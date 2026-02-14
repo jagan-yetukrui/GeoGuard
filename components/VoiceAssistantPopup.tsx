@@ -81,7 +81,16 @@ export function VoiceAssistantPopup({
         await audio.play();
       } catch (e) {
         setThinking(false);
-        setError(e instanceof Error ? e.message : "Voice assistant unavailable");
+        const msg = e instanceof Error ? e.message : "Voice assistant unavailable";
+        const isConfigError =
+          msg.includes("GEMINI_API_KEY") ||
+          msg.includes("ELEVENLABS_API_KEY") ||
+          msg.includes("503");
+        setError(
+          isConfigError
+            ? "Add GEMINI_API_KEY and ELEVENLABS_API_KEY to backend/.env and restart."
+            : msg
+        );
       }
     },
     [chatContext]
