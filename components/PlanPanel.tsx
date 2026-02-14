@@ -9,20 +9,25 @@ import { cn } from "@/lib/utils";
 
 function RiskBadge({ level }: { level: RiskLevel }) {
   const classByLevel = {
-    high: "bg-red-500/10 text-red-700 border-red-200 dark:bg-red-500/20 dark:text-red-300 dark:border-red-800",
+    high: "bg-red-50 text-red-900 border-red-300 font-semibold dark:bg-red-500/30 dark:text-red-100 dark:border-red-600",
     medium:
-      "bg-amber-500/10 text-amber-700 border-amber-200 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-800",
-    low: "bg-emerald-500/10 text-emerald-700 border-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-800",
+      "bg-amber-50 text-amber-900 border-amber-300 font-semibold dark:bg-amber-500/30 dark:text-amber-100 dark:border-amber-600",
+    low: "bg-green-50 text-green-900 border-green-300 font-semibold dark:bg-green-500/30 dark:text-green-100 dark:border-green-600",
   };
+  const ariaLabel = `Risk level: ${level}`;
   return (
     <Badge
       variant={level === "high" ? "destructive" : "outline"}
       className={cn(
+        "transition-all duration-200",
         level === "medium" && classByLevel.medium,
-        level === "low" && classByLevel.low
+        level === "low" && classByLevel.low,
+        level === "high" && classByLevel.high
       )}
+      aria-label={ariaLabel}
+      role="status"
     >
-      {level}
+      {level.toUpperCase()}
     </Badge>
   );
 }
@@ -44,41 +49,44 @@ export function PlanPanel({ plan, quake, verified = false }: PlanPanelProps) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
       className="space-y-4"
+      role="region"
+      aria-label="Emergency response plan"
     >
-      <Card className="rounded-2xl border border-border p-6 shadow-sm">
-        <CardHeader className="p-0 pb-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <CardTitle className="text-base">Response Plan</CardTitle>
+      <Card className="rounded-lg border-2 border-primary shadow-md bg-card">
+        <CardHeader className="pb-3 border-b border-border">
+          <div className="flex flex-wrap items-center gap-3">
+            <CardTitle className="text-lg font-bold text-primary">📋 Response Plan</CardTitle>
             <Badge
               variant="outline"
-              className="border-amber-500/50 bg-amber-500/10 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
+              className="border-amber-400 bg-amber-50 text-amber-900 dark:bg-amber-500/20 dark:text-amber-200 font-semibold"
             >
-              Heuristic risk zones
+              Risk Analysis
             </Badge>
             {verified && (
               <Badge
                 variant="secondary"
-                className="gap-1 bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300"
+                className="gap-1 bg-green-50 text-green-900 border-green-300 font-semibold dark:bg-green-500/20 dark:text-green-200"
               >
-                <ShieldCheck className="size-3" />
-                Verified Plan
+                <ShieldCheck className="size-4" />
+                ✓ Verified
               </Badge>
             )}
           </div>
         </CardHeader>
-        <CardContent className="space-y-5 p-0">
-          <p className="rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs font-medium text-amber-800 dark:text-amber-200">
-            Decision support tool. Not an official evacuation order.
-          </p>
+        <CardContent className="space-y-5 pt-5">
+          <div className="rounded-lg border-2 border-amber-300 bg-amber-50 px-4 py-3 dark:bg-amber-500/10 dark:border-amber-600" role="alert">
+            <p className="text-sm font-semibold text-amber-900 dark:text-amber-100">⚠️ Decision Support Tool</p>
+            <p className="text-xs text-amber-800 dark:text-amber-200 mt-1">Not an official evacuation order. Consult local emergency management.</p>
+          </div>
           <p className="text-sm leading-relaxed text-muted-foreground">
             {plan.summary}
           </p>
 
           {hasWhy && (
-            <div className="rounded-xl border border-border bg-muted/30 p-4">
-              <h4 className="mb-3 flex items-center gap-2 text-sm font-medium">
-                <Info className="size-4 text-muted-foreground" />
-                Why these zones?
+            <div className="rounded-lg border-2 border-primary/20 bg-primary/5 p-4" role="contentinfo">
+              <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold text-primary">
+                <Info className="size-5" />
+                📊 Analysis Details
               </h4>
               <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
                 {quake && (
@@ -156,65 +164,74 @@ export function PlanPanel({ plan, quake, verified = false }: PlanPanelProps) {
             </div>
           )}
 
-          <div>
-            <h4 className="mb-2 flex items-center gap-2 text-sm font-medium">
-              <MapPin className="size-4 text-muted-foreground" />
-              Risk zones
+          <div className="border-t-2 border-border pt-4">
+            <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
+              <MapPin className="size-5" />
+              🔴 Risk Zones
             </h4>
-            <ul className="space-y-2">
+            <ul className="space-y-3">
               {plan.riskZones.map((z) => (
                 <li
                   key={z.id}
-                  className="flex flex-wrap items-center gap-2 text-sm"
+                  className="flex flex-wrap items-start gap-3 text-sm p-3 rounded-lg bg-secondary/40 border border-border"
                 >
                   <RiskBadge level={z.level} />
-                  <span className="font-medium">{z.label}</span>
-                  <span className="text-muted-foreground">— {z.description}</span>
+                  <div className="flex-1">
+                    <p className="font-semibold text-foreground">{z.label}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{z.description}</p>
+                    <p className="text-xs text-muted-foreground font-medium mt-1">Radius: {z.radiusKm}km</p>
+                  </div>
                 </li>
               ))}
             </ul>
           </div>
 
-          <div>
-            <h4 className="mb-2 flex items-center gap-2 text-sm font-medium">
-              <MapPin className="size-4 text-muted-foreground" />
-              Recommended stations
+          <div className="border-t-2 border-border pt-4">
+            <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
+              <MapPin className="size-5" />
+              🏥 Recommended Stations
             </h4>
-            <ul className="list-inside list-disc space-y-1 text-sm text-muted-foreground">
+            <ul className="space-y-2 text-sm">
               {plan.stations.map((s) => (
-                <li key={s.id}>
-                  <span className="font-medium text-foreground">{s.name}</span> (
-                  {s.type})
-                  {s.distanceKm != null && ` · ${s.distanceKm} km`}
+                <li key={s.id} className="flex items-start gap-3 p-2 rounded hover:bg-secondary/30">
+                  <span className="text-lg">📍</span>
+                  <div>
+                    <p className="font-semibold text-foreground">{s.name}</p>
+                    <p className="text-xs text-muted-foreground">{s.type.charAt(0).toUpperCase() + s.type.slice(1)}{s.distanceKm != null && ` · ${s.distanceKm}km away`}</p>
+                  </div>
                 </li>
               ))}
             </ul>
           </div>
 
-          <div>
-            <h4 className="mb-2 flex items-center gap-2 text-sm font-medium">
-              <Route className="size-4 text-muted-foreground" />
-              Recommended routes
+          <div className="border-t-2 border-border pt-4">
+            <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
+              <Route className="size-5" />
+              🛣️ Recommended Routes
             </h4>
             <ul className="space-y-2 text-sm">
               {plan.routes.map((r) => (
-                <li key={r.id} className="text-muted-foreground">
-                  <span className="font-medium text-foreground">{r.name}</span>
-                  {r.durationMinutes != null && ` · ${r.durationMinutes} min`}
+                <li key={r.id} className="flex items-start gap-3 p-2 rounded hover:bg-secondary/30">
+                  <span className="text-lg">→</span>
+                  <div>
+                    <p className="font-semibold text-foreground">{r.name}</p>
+                    {r.durationMinutes != null && <p className="text-xs text-muted-foreground">⏱️ {r.durationMinutes} min</p>}
+                  </div>
                 </li>
               ))}
             </ul>
           </div>
 
-          <div>
-            <h4 className="mb-2 flex items-center gap-2 text-sm font-medium">
-              <ListOrdered className="size-4 text-muted-foreground" />
-              Priority actions
+          <div className="border-t-2 border-border pt-4 bg-primary/5 p-4 rounded-lg">
+            <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold text-primary">
+              <ListOrdered className="size-5" />
+              📌 Priority Actions
             </h4>
-            <ol className="list-inside list-decimal space-y-1 text-sm text-muted-foreground">
+            <ol className="space-y-2 text-sm">
               {plan.priorityActions.map((action, i) => (
-                <li key={i} className="pl-1">
-                  {action}
+                <li key={i} className="flex gap-3">
+                  <span className="font-bold text-primary flex-shrink-0">{i + 1}.</span>
+                  <span className="text-foreground">{action}</span>
                 </li>
               ))}
             </ol>

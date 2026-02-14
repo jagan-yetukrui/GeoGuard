@@ -135,8 +135,8 @@ export default function Home() {
   }, []);
 
   return (
-    <main className="flex h-full min-h-screen w-full flex-col lg:flex-row">
-      <div className="h-[40vh] w-full shrink-0 lg:h-full lg:w-[70%] lg:min-w-0 lg:p-4">
+    <main className="flex h-full min-h-screen w-full flex-col lg:flex-row bg-background" role="main" aria-label="GeoGuard earthquake response system">
+      <div className="h-[40vh] w-full shrink-0 lg:h-full lg:w-[70%] lg:min-w-0 lg:p-4" role="region" aria-label="Earthquake map visualization">
         <MapView
           quake={selectedQuake}
           zones={plan?.riskZones ?? []}
@@ -148,7 +148,7 @@ export default function Home() {
           infraNodes={plan?.infraNodes}
         />
       </div>
-      <div className="w-full shrink-0 border-t border-border lg:h-full lg:w-[30%] lg:min-w-[320px] lg:border-l lg:border-t-0">
+      <div className="w-full shrink-0 border-t border-border lg:h-full lg:w-[30%] lg:min-w-[320px] lg:border-l lg:border-t-0 bg-background">
         <QuakeSidebar
           quake={selectedQuake}
           latestQuakes={latestQuakes}

@@ -14,19 +14,24 @@ import { cn } from "@/lib/utils";
 
 function RiskBadge({ level }: { level: RiskLevel }) {
   const classByLevel = {
-    high: "bg-red-500/10 text-red-700 border-red-200",
-    medium: "bg-amber-500/10 text-amber-700 border-amber-200",
-    low: "bg-emerald-500/10 text-emerald-700 border-emerald-200",
+    high: "bg-red-50 text-red-900 border-red-300 font-semibold",
+    medium: "bg-amber-50 text-amber-900 border-amber-300 font-semibold",
+    low: "bg-green-50 text-green-900 border-green-300 font-semibold",
   };
+  const ariaLabel = `Risk level: ${level}`;
   return (
     <Badge
       variant={level === "high" ? "destructive" : "outline"}
       className={cn(
+        "transition-all duration-200",
         level === "medium" && classByLevel.medium,
-        level === "low" && classByLevel.low
+        level === "low" && classByLevel.low,
+        level === "high" && classByLevel.high
       )}
+      aria-label={ariaLabel}
+      role="status"
     >
-      {level}
+      {level.toUpperCase()}
     </Badge>
   );
 }
@@ -65,12 +70,12 @@ export function QuakeSidebar({
   const riskZones = plan?.riskZones ?? [];
 
   return (
-    <aside className="flex h-full w-full flex-col gap-4 overflow-y-auto p-6">
-      <div className="flex items-center gap-4">
-        <div className="flex size-24 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-border/50">
+    <aside className="flex h-full w-full flex-col gap-4 overflow-y-auto p-6 bg-background" role="complementary" aria-label="Emergency response details and controls">
+      <div className="flex items-center gap-4 pb-2 border-b border-border">
+        <div className="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white shadow-sm ring-2 ring-primary/20">
           <Image
             src="/logo.png"
-            alt="GeoGuard"
+            alt="GeoGuard Logo"
             width={96}
             height={96}
             className="size-full object-contain p-1"
@@ -79,88 +84,101 @@ export function QuakeSidebar({
         </div>
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-xl font-bold tracking-tight">
-              <span className="text-blue-600">Geo</span>
-              <span className="text-emerald-600">Guard</span>
+            <h1 className="text-2xl font-bold tracking-tight text-primary">
+              GeoGuard
             </h1>
             {offlineMode && (
-              <Badge variant="secondary" className="text-xs">
-                Offline mode
+              <Badge variant="secondary" className="text-xs font-medium">
+                ⚠ Offline mode
               </Badge>
             )}
           </div>
-          <p className="mt-0.5 text-xs text-muted-foreground">Event details</p>
+          <p className="mt-1 text-xs text-muted-foreground font-medium">Real-time Emergency Response Intelligence</p>
         </div>
       </div>
 
-      {onSwitchToLive && onSwitchToLast5 && (
-        <div className="flex items-center gap-2">
-          <div className="flex rounded-lg border border-border bg-muted/30 p-0.5">
-            <button
-              type="button"
-              onClick={onSwitchToLive}
-              className={cn(
-                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-                viewMode === "live"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <Zap className="size-3.5" />
-              Live
-            </button>
-            <button
-              type="button"
-              onClick={onSwitchToLast5}
-              className={cn(
-                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-                viewMode === "last5"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <List className="size-3.5" />
-              Last 5
-            </button>
+      <Card className="rounded-lg border border-border shadow-sm bg-card" role="region" aria-label="View mode selector">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">View Mode</CardTitle>
+        </CardHeader>
+        <CardContent className="p-4 pt-0">
+          <div className="flex items-center gap-2">
+            <div className="flex rounded-lg border border-border bg-secondary/30 p-0.5">
+              <button
+                type="button"
+                onClick={onSwitchToLive}
+                className={cn(
+                  "flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-semibold transition-all",
+                  viewMode === "live"
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground hover:bg-background"
+                )}
+                aria-pressed={viewMode === "live"}
+                aria-label="View live earthquake event"
+              >
+                <Zap className="size-4" />
+                Live
+              </button>
+              <button
+                type="button"
+                onClick={onSwitchToLast5}
+                className={cn(
+                  "flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-semibold transition-all",
+                  viewMode === "last5"
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground hover:bg-background"
+                )}
+                aria-pressed={viewMode === "last5"}
+                aria-label="View last 5 earthquake events"
+              >
+                <List className="size-4" />
+                Last 5
+              </button>
+            </div>
+            {onRefreshQuakes && (
+              <button
+                type="button"
+                onClick={onRefreshQuakes}
+                disabled={quakeLoading}
+                className="rounded px-3 py-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary disabled:opacity-50 transition-colors"
+                title="Refresh earthquake data"
+                aria-label="Refresh earthquake data"
+                aria-busy={quakeLoading}
+              >
+                <RefreshCw className={cn("size-4", quakeLoading && "animate-spin")} />
+              </button>
+            )}
           </div>
-          {onRefreshQuakes && (
-            <button
-              type="button"
-              onClick={onRefreshQuakes}
-              disabled={quakeLoading}
-              className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
-              title="Refresh quakes"
-            >
-              <RefreshCw className={cn("size-4", quakeLoading && "animate-spin")} />
-            </button>
-          )}
-        </div>
-      )}
+        </CardContent>
+      </Card>
 
       {viewMode === "last5" && latestQuakes.length > 0 && onSelectQuake && (
-        <Card className="rounded-2xl border border-border shadow-sm">
+        <Card className="rounded-lg border border-border shadow-sm bg-card" role="region" aria-label="Recent earthquakes list">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Latest 5</CardTitle>
+            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">📋 Latest 5 Events</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-1 p-6 pt-0">
-            <ul className="max-h-40 space-y-1 overflow-y-auto">
+          <CardContent className="space-y-1 p-4 pt-0">
+            <ul className="max-h-48 space-y-1 overflow-y-auto">
               {latestQuakes.map((q) => (
                 <li key={q.id}>
                   <button
                     type="button"
                     onClick={() => onSelectQuake(q)}
                     className={cn(
-                      "w-full rounded-lg border px-3 py-2 text-left text-xs transition-colors",
+                      "w-full rounded-lg border-2 px-3 py-2 text-left text-xs transition-all",
                       quake.id === q.id
-                        ? "border-primary bg-primary/10 text-foreground"
-                        : "border-border hover:bg-muted/50"
+                        ? "border-primary bg-primary/10 text-foreground font-semibold"
+                        : "border-border hover:border-border/80 hover:bg-secondary/50"
                     )}
+                    aria-selected={quake.id === q.id}
                   >
-                    <span className="font-medium">M{q.magnitude}</span>
-                    <span className="ml-2 text-muted-foreground">
-                      {q.locationName}
-                    </span>
-                    <span className="ml-1 block truncate text-muted-foreground">
+                    <div className="flex items-baseline gap-2">
+                      <span className="font-bold text-primary">M{q.magnitude}</span>
+                      <span className="truncate text-muted-foreground">
+                        {q.locationName}
+                      </span>
+                    </div>
+                    <span className="text-xs text-muted-foreground block mt-1">
                       {q.timestamp
                         ? new Date(q.timestamp).toLocaleString(undefined, {
                             dateStyle: "short",
@@ -176,61 +194,64 @@ export function QuakeSidebar({
         </Card>
       )}
 
-      <Card className="rounded-2xl border border-border shadow-sm">
+      <Card className="rounded-lg border border-border shadow-sm bg-card" role="region" aria-label="Event details">
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">
-            {viewMode === "live" ? "Live event" : "Selected event"}
+          <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            {viewMode === "live" ? "🔴 Live Event" : "📍 Selected Event"}
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2 p-6 pt-0 text-sm">
+        <CardContent className="space-y-3 p-4 pt-0 text-sm">
           {quakeLoading ? (
             <div className="animate-pulse space-y-2">
-              <div className="h-4 w-24 rounded bg-muted" />
-              <div className="h-3 w-full max-w-[200px] rounded bg-muted" />
-              <div className="h-3 w-32 rounded bg-muted" />
+              <div className="h-5 w-20 rounded bg-muted" />
+              <div className="h-4 w-full max-w-[200px] rounded bg-muted" />
+              <div className="h-4 w-32 rounded bg-muted" />
             </div>
           ) : (
             <>
-              <div className="flex items-baseline gap-2">
-                <span className="font-semibold text-foreground">
-                  M{quake.magnitude}
-                </span>
-                <span className="text-muted-foreground">
-                  {quake.depth} km depth · {quake.locationName}
-                </span>
+              <div className="flex items-center gap-3">
+                <span className="text-3xl font-bold text-primary aria-label='Magnitude'">M{quake.magnitude}</span>
+                <div className="space-y-1">
+                  <p className="font-medium text-foreground">{quake.locationName}</p>
+                  <p className="text-xs text-muted-foreground">{quake.depth} km depth</p>
+                </div>
               </div>
-              <p className="text-muted-foreground">{formattedTime}</p>
+              <p className="text-xs text-muted-foreground font-medium bg-secondary/40 p-2 rounded">
+                ⏰ {formattedTime}
+              </p>
             </>
           )}
         </CardContent>
       </Card>
 
-      <Card className="rounded-2xl border border-border shadow-sm">
+      <Card className="rounded-lg border border-border shadow-sm bg-card" role="region" aria-label="Risk summary">
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">Risk Summary</CardTitle>
+          <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">📊 Risk Zones</CardTitle>
         </CardHeader>
-        <CardContent className="flex flex-wrap gap-2 p-6 pt-0">
+        <CardContent className="flex flex-wrap gap-2 p-4 pt-0">
           {riskZones.length > 0 ? (
             riskZones.map((z) => (
-              <RiskBadge key={z.id} level={z.level} />
+              <div key={z.id} className="flex flex-col gap-1">
+                <RiskBadge level={z.level} />
+                <span className="text-xs text-muted-foreground">{z.radiusKm}km radius</span>
+              </div>
             ))
           ) : (
-            <p className="text-xs text-muted-foreground">
-              Generate plan to see risk zones
-            </p>
+            <p className="text-xs text-muted-foreground font-medium">Generate a response plan to assess risk zones</p>
           )}
         </CardContent>
       </Card>
 
       {planError && (
-        <Card className="rounded-2xl border-destructive/50 border border-border bg-destructive/5 shadow-sm">
+        <Card className="rounded-lg border-2 border-destructive bg-destructive/5 shadow-sm" role="alert">
           <CardContent className="p-4">
-            <p className="text-sm text-foreground">{planError}</p>
+            <p className="text-sm font-medium text-destructive">⚠️ Error generating plan</p>
+            <p className="text-xs text-foreground mt-1">{planError}</p>
             {onRetryPlan && (
               <Button
                 variant="outline"
                 size="sm"
-                className="mt-2"
+                className="mt-3 w-full"
                 onClick={onRetryPlan}
               >
                 Retry
@@ -240,20 +261,22 @@ export function QuakeSidebar({
         </Card>
       )}
 
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-3 my-2">
         <Button
-          className="w-full rounded-xl"
+          className="w-full rounded-lg h-11 font-semibold text-base"
           onClick={onGeneratePlan}
           disabled={isGenerating}
+          aria-busy={isGenerating}
+          aria-label={isGenerating ? "Generating response plan" : "Generate response plan"}
         >
           {isGenerating ? (
             <>
-              <Loader2 className="size-4 animate-spin" />
-              Generating…
+              <Loader2 className="size-5 animate-spin mr-2" />
+              Generating Plan…
             </>
           ) : (
             <>
-              <FileText className="size-4" />
+              <FileText className="size-5 mr-2" />
               Generate Response Plan
             </>
           )}
@@ -262,37 +285,41 @@ export function QuakeSidebar({
           <Button
             variant="outline"
             size="sm"
-            className="rounded-xl"
+            className="rounded-lg font-semibold"
             onClick={onToggleBriefing}
             disabled={briefingLoading || !planGenerated}
+            aria-busy={briefingLoading}
+            aria-label={briefingLoading ? "Generating audio briefing" : "Play audio briefing"}
           >
             {briefingLoading ? (
               <Loader2 className="size-4 animate-spin" />
             ) : (
               <PlayCircle className="size-4" />
             )}
-            {briefingLoading ? "Generating…" : "Play Briefing"}
+            {briefingLoading ? "Generating…" : "🔊 Briefing"}
           </Button>
           <Button
             variant="outline"
             size="sm"
-            className="rounded-xl"
+            className="rounded-lg font-semibold"
             onClick={onVerifyPlan}
             disabled={!planGenerated}
+            aria-label="Verify and validate response plan"
           >
             <ShieldCheck className="size-4" />
-            Verify Plan
+            ✓ Verify
           </Button>
         </div>
         <Button
           variant="outline"
           size="sm"
-          className="w-full rounded-xl"
+          className="w-full rounded-lg font-semibold"
           onClick={onSavePlan}
           disabled={!planGenerated}
+          aria-label={planSaved ? "Plan saved" : "Save response plan"}
         >
           <Save className="size-4" />
-          {planSaved ? "Saved" : "Save Plan"}
+          {planSaved ? "✓ Saved" : "💾 Save"}
         </Button>
       </div>
 

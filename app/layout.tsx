@@ -13,8 +13,16 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "GeoGuard — Real-Time Earthquake Response",
-  description: "Emergency response intelligence for live earthquake events",
+  title: "GeoGuard — Real-Time Earthquake Response Intelligence",
+  description: "Emergency response intelligence for live earthquake events. Access real-time USGS data, automatic risk zoning, and actionable response plans.",
+  keywords: ["earthquake", "emergency response", "disaster management", "risk assessment", "real-time alerts"],
+  viewport: "width=device-width, initial-scale=1, maximum-scale=5",
+  robots: "index, follow",
+  openGraph: {
+    title: "GeoGuard",
+    description: "Real-time earthquake response intelligence system",
+    type: "website",
+  },
 };
 
 export default function RootLayout({
@@ -24,8 +32,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="h-full" suppressHydrationWarning>
+      <head>
+        <meta charSet="utf-8" />
+        <meta name="theme-color" content="#0066cc" />
+      </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased h-full min-h-screen bg-white`}
+        className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased h-full min-h-screen bg-background text-foreground`}
         suppressHydrationWarning
       >
         {children}
