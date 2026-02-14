@@ -7,6 +7,7 @@ def compute_zoning(
     plate_distance_km: float | None,
     center_lat: float,
     center_lng: float,
+    plate_motion_proxy_mm_yr: float | None = None,
 ) -> tuple[int, list[dict], str, dict]:
     mag_factor = clamp((magnitude - 3.5) / 4.0, 0.0, 1.0)
     shallow_factor = clamp((70.0 - depth_km) / 70.0, 0.0, 1.0)
@@ -26,7 +27,8 @@ def compute_zoning(
     med_km = clamp(round(base_med * amp, 1), 0.1, 80.0)
     low_km = clamp(round(base_low * amp, 1), 0.1, 180.0)
 
-    if plate_distance_km is not None and magnitude >= 5.5:
+    plate_plausible = plate_distance_km is not None and plate_distance_km <= 2000.0
+    if plate_plausible and magnitude >= 5.5 and (plate_distance_km is None or plate_distance_km <= 1000.0):
         confidence = "high"
     elif magnitude >= 4.5:
         confidence = "medium"
@@ -50,14 +52,17 @@ def compute_zoning(
     if not factors:
         factors.append("baseline parameters")
 
+    motion_note = ""
+    if plate_motion_proxy_mm_yr is not None:
+        motion_note = f" Relative plate motion proxy ~{plate_motion_proxy_mm_yr:.0f} mm/yr (near boundary)."
     why_radii = (
         f"Zone radii are derived from magnitude (M{magnitude:.1f}), "
-        f"depth ({depth_km:.0f} km), and plate boundary proximity. "
+        f"depth ({depth_km:.0f} km), and plate boundary proximity.{motion_note} "
         f"Amplification factor {amp:.2f} applied for shallow and plate effects."
     )
     caveat = (
-        "This is a heuristic for demo purposes and should be validated "
-        "against official seismic hazard products."
+        "Heuristic risk zones—not from full seismology models. "
+        "Uncertainty is inherent; validate against official seismic hazard products (e.g. ShakeMap)."
     )
 
     explanation = {

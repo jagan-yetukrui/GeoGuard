@@ -43,10 +43,51 @@ export interface Route {
   distanceKm?: number;
 }
 
+export interface PlanExplanation {
+  why_radii: string;
+  key_factors: string[];
+  caveat: string;
+  plate_distance_km?: number | null;
+  density_method?: string | null;
+  infra_count?: number | null;
+  similar_quakes_used?: number | null;
+  notes?: string | null;
+}
+
+export interface SafePoint {
+  lat: number;
+  lng: number;
+  reason: string;
+}
+
+export interface InfraNode {
+  name: string;
+  type: string;
+  lat: number;
+  lng: number;
+}
+
+export interface ZonesGeoJSON {
+  type: "FeatureCollection";
+  features: Array<{
+    type: "Feature";
+    properties: { level: string };
+    geometry: { type: "Polygon" | "MultiPolygon"; coordinates: unknown };
+  }>;
+}
+
 export interface ResponsePlan {
   summary: string;
   riskZones: RiskZone[];
   stations: Station[];
   routes: Route[];
   priorityActions: string[];
+  plateDistanceKm?: number | null;
+  damageScore?: number | null;
+  confidence?: "low" | "medium" | "high" | null;
+  explanation?: PlanExplanation | null;
+  plateMotionProxyMmYr?: number | null;
+  zonesGeoJSON?: ZonesGeoJSON | null;
+  safePoints?: SafePoint[] | null;
+  infraNodes?: InfraNode[] | null;
 }

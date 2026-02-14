@@ -1,21 +1,65 @@
 from fastapi import APIRouter, HTTPException
 
-from app.plates import distance_km_to_plate
+from app.plates import (
+    distance_km_to_plate,
+    get_boundaries_geojson,
+    plate_motion_proxy_mm_yr as get_plate_motion_proxy,
+)
 from app.recommend import generate_routes, generate_stations
 from app.schemas import (
     AnalyzeBody,
     AnalyzeResponse,
+    BriefBody,
+    BriefResponse,
+    VoiceBody,
+    VoiceResponse,
     ExplanationOut,
     PlanBody,
     PlanResponse,
     QuakeOut,
     ZoneOut,
     HelpStationOut,
+    SafePointOut,
+    InfraNodeOut,
+    RouteOut,
 )
 from app.usgs import get_live_quake
 from app.zoning import compute_zoning
 
 router = APIRouter(prefix="/api")
+
+
+def _plan_zoning_fallback(mag, depth_km, plate_km, lat, lng, motion_proxy):
+    """Return (zones list, explanation dict) for circle fallback and narrative."""
+    damage_score, zones, confidence, explanation = compute_zoning(
+        mag, depth_km, plate_km, lat, lng, plate_motion_proxy_mm_yr=motion_proxy
+    )
+    return zones, explanation
+
+
+@router.get("/plates/geojson")
+def plates_geojson():
+    """Return plate boundaries as GeoJSON FeatureCollection (same source as distance_km_to_plate)."""
+    return get_boundaries_geojson()
+
+
+@router.get("/quake/list")
+def quake_list(limit: int = 5):
+    """Return latest N quakes from USGS all_day feed (newest first). Same source as /quake/live."""
+    from app.usgs import get_latest_quakes
+    quakes = get_latest_quakes(limit=min(20, max(1, limit)))
+    return [
+        QuakeOut(
+            id=q["id"],
+            place=q["place"],
+            time=q["time"],
+            mag=q["mag"],
+            depth_km=q["depth_km"],
+            lat=q["lat"],
+            lng=q["lng"],
+        )
+        for q in quakes
+    ]
 
 
 @router.get("/quake/live")
@@ -61,8 +105,11 @@ def analyze(body: AnalyzeBody):
         }
 
     plate_km = distance_km_to_plate(lat, lng)
+    if plate_km is not None:
+        plate_km = min(plate_km, 20000.0)
+    motion_proxy = get_plate_motion_proxy(plate_km)
     damage_score, zones, confidence, explanation = compute_zoning(
-        mag, depth_km, plate_km, lat, lng
+        mag, depth_km, plate_km, lat, lng, plate_motion_proxy_mm_yr=motion_proxy
     )
     return AnalyzeResponse(
         quake=QuakeOut(
@@ -78,13 +125,22 @@ def analyze(body: AnalyzeBody):
         damage_score=damage_score,
         confidence=confidence,
         zones=[ZoneOut(level=z["level"], radius_km=z["radius_km"], center=z["center"]) for z in zones],
-        explanation=ExplanationOut(**explanation),
+        explanation=ExplanationOut(
+            **explanation,
+            plate_distance_km=plate_km,
+            plate_motion_source="MORVEL-style proxy (see UNAVCO for point velocities)" if motion_proxy is not None else None,
+        ),
     )
 
 
 @router.post("/plan", response_model=PlanResponse)
 def plan(body: PlanBody):
     from app.usgs import get_quake_by_id
+    from app.historical import find_similar_quakes
+    from app.grid import compute_risk_grid, RESOLUTION_KM, _cell_centers
+    from app.polygonize import polygonize as polygonize_grid
+    from app.overpass import fetch_infra_nodes, get_density_proxy, get_density_per_cell
+
     q = get_quake_by_id(body.quake_id)
     if not q:
         get_live_quake()
@@ -95,15 +151,59 @@ def plan(body: PlanBody):
     mag = q["mag"]
     depth_km = q["depth_km"]
     plate_km = distance_km_to_plate(lat, lng)
-    damage_score, zones, confidence, _ = compute_zoning(mag, depth_km, plate_km, lat, lng)
+    if plate_km is not None:
+        plate_km = min(plate_km, 20000.0)
+    motion_proxy = get_plate_motion_proxy(plate_km)
+    infra_nodes_list, infra_ok = fetch_infra_nodes(lat, lng)
+    infra_count = len(infra_nodes_list)
+    density_proxy = get_density_proxy(lat, lng, infra_nodes_list)
+    centers = _cell_centers(lat, lng)
+    density_per_cell, density_method = get_density_per_cell(centers, lat, lng, RESOLUTION_KM)
+    if not infra_ok:
+        grid_explanation_note = "infra unavailable (Overpass failed)"
+    else:
+        grid_explanation_note = None
+    similar = find_similar_quakes(lat, lng, mag, depth_km, plate_km, k=5)
+    cells, damage_score, confidence, grid_explanation, factor_breakdown = compute_risk_grid(
+        lat, lng, mag, depth_km, plate_km, similar,
+        density_proxy=density_proxy, infra_count=infra_count,
+        density_per_cell=density_per_cell if density_per_cell else None,
+    )
+    if grid_explanation_note:
+        grid_explanation["notes"] = (grid_explanation.get("notes") or "") + " " + grid_explanation_note
+    if density_method:
+        grid_explanation["density_method"] = density_method
+    elif infra_ok:
+        grid_explanation["density_method"] = "overpass_infra_count"
+    else:
+        grid_explanation["density_method"] = "placeholder"
+    zones_geojson, safe_points_list = polygonize_grid(cells, RESOLUTION_KM)
+    safe_points_out = [SafePointOut(lat=p["lat"], lng=p["lng"], reason=p["reason"]) for p in safe_points_list]
+
+    zones, explanation_zoning = _plan_zoning_fallback(mag, depth_km, plate_km, lat, lng, motion_proxy)
     high_km = next(z["radius_km"] for z in zones if z["level"] == "high")
     med_km = next(z["radius_km"] for z in zones if z["level"] == "medium")
 
     max_stations = 6
     if body.constraints and body.constraints.max_stations is not None:
         max_stations = min(12, max(3, body.constraints.max_stations))
-    stations = generate_stations(lat, lng, high_km, med_km, max_stations=max_stations)
-    route_geoms = generate_routes(lat, lng, high_km, stations)
+    stations = generate_stations(
+        lat, lng, high_km, med_km, max_stations=max_stations,
+        zones_geojson=zones_geojson, infra_nodes=infra_nodes_list,
+    )
+    route_dicts = generate_routes(lat, lng, high_km, stations)
+
+    explanation = ExplanationOut(
+        why_radii=explanation_zoning["why_radii"],
+        key_factors=explanation_zoning["key_factors"],
+        caveat=explanation_zoning["caveat"],
+        plate_distance_km=grid_explanation.get("plate_distance_km"),
+        plate_motion_source="MORVEL-style proxy (see UNAVCO for point velocities)" if motion_proxy is not None else None,
+        density_method=grid_explanation.get("density_method"),
+        infra_count=grid_explanation.get("infra_count"),
+        similar_quakes_used=grid_explanation.get("similar_quakes_used"),
+        notes=grid_explanation.get("notes"),
+    )
 
     if damage_score > 75:
         priority_actions = [
@@ -125,7 +225,7 @@ def plan(body: PlanBody):
     summary = (
         f"M{mag:.1f} event at {depth_km:.0f} km depth. "
         f"Damage score {damage_score}/100 (confidence: {confidence}). "
-        f"{len(stations)} help stations and {len(route_geoms)} routes identified."
+        f"{len(stations)} help stations and {len(route_dicts)} routes identified."
     )
 
     from datetime import datetime, timezone
@@ -134,9 +234,47 @@ def plan(body: PlanBody):
     return PlanResponse(
         zones=[ZoneOut(level=z["level"], radius_km=z["radius_km"], center=z["center"]) for z in zones],
         help_stations=[HelpStationOut(**s) for s in stations],
-        routes=route_geoms,
+        routes=[RouteOut(name=r["name"], points=r["points"], reason=r["reason"]) for r in route_dicts],
         priority_actions=priority_actions,
         summary=summary,
         generated_at=generated_at,
         ai_summary=None,
+        plate_distance_km=plate_km,
+        damage_score=damage_score,
+        confidence=confidence,
+        explanation=explanation,
+        plate_motion_proxy_mm_yr=motion_proxy,
+        zones_geojson=zones_geojson,
+        safe_points=safe_points_out,
+        infra_nodes=[InfraNodeOut(name=n["name"], type=n["type"], lat=n["lat"], lng=n["lng"]) for n in infra_nodes_list],
     )
+
+
+@router.post("/brief", response_model=BriefResponse)
+def brief(body: BriefBody):
+    from app.brief import generate_brief
+    result = generate_brief(body.plan)
+    if not result:
+        raise HTTPException(
+            status_code=503,
+            detail="Brief unavailable. Set GEMINI_API_KEY to enable.",
+        )
+    summary, priority_actions, public_message = result
+    return BriefResponse(
+        summary=summary,
+        priority_actions=priority_actions,
+        public_message=public_message,
+    )
+
+
+@router.post("/voice", response_model=VoiceResponse)
+def voice(body: VoiceBody):
+    from app.voice import text_to_speech_base64
+    result = text_to_speech_base64(body.text)
+    if not result:
+        raise HTTPException(
+            status_code=503,
+            detail="Voice unavailable. Set ELEVENLABS_API_KEY to enable.",
+        )
+    audio_b64, content_type = result
+    return VoiceResponse(audio_base64=audio_b64, content_type=content_type)

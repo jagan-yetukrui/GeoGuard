@@ -116,32 +116,68 @@ function mapStation(s: HelpStationOut, index: number): Station {
   };
 }
 
-function mapRoute(points: number[][], index: number, stations: Station[]): Route {
-  const names = ["Epicenter to station", "Epicenter to station", "High zone patrol"];
-  const waypoints = points.map(([lng, lat]) => ({ lat, lng }));
-  const fromLabel = index === 2 ? "Epicenter" : "Epicenter";
-  const toLabel = index < 2 && stations[index] ? stations[index].name : "High zone ring";
+function mapRoute(r: RouteOut, index: number): Route {
+  const waypoints = (r.points ?? []).map(([lng, lat]) => ({ lat, lng }));
   return {
     id: `route-${index + 1}`,
-    name: names[index] ?? `Route ${index + 1}`,
-    from: fromLabel,
-    to: toLabel,
+    name: r.name ?? `Route ${index + 1}`,
+    from: "Epicenter",
+    to: waypoints.length > 1 ? "Station" : "Waypoint",
     waypoints,
   };
+}
+
+interface ExplanationOut {
+  why_radii: string;
+  key_factors: string[];
+  caveat: string;
+}
+
+interface RouteOut {
+  name: string;
+  points: number[][];
+  reason: string;
+}
+
+interface SafePointOut {
+  lat: number;
+  lng: number;
+  reason: string;
+}
+
+interface InfraNodeOut {
+  name: string;
+  type: string;
+  lat: number;
+  lng: number;
 }
 
 interface PlanResponse {
   zones: ZoneOut[];
   help_stations: HelpStationOut[];
-  routes: number[][][];
+  routes: RouteOut[];
   priority_actions: string[];
   summary: string;
   generated_at: string;
+  plate_distance_km?: number | null;
+  damage_score?: number | null;
+  confidence?: "low" | "medium" | "high" | null;
+  explanation?: ExplanationOut | null;
+  plate_motion_proxy_mm_yr?: number | null;
+  zones_geojson?: unknown | null;
+  safe_points?: SafePointOut[] | null;
+  infra_nodes?: InfraNodeOut[] | null;
 }
 
 export async function getLiveQuake(): Promise<QuakeEvent> {
   const data = await fetchApi<QuakeOut>("/api/quake/live");
   return mapQuake(data);
+}
+
+/** Latest N quakes from same USGS feed as live (newest first). */
+export async function getLatestQuakes(limit: number = 5): Promise<QuakeEvent[]> {
+  const list = await fetchApi<QuakeOut[]>(`/api/quake/list?limit=${Math.min(20, Math.max(1, limit))}`);
+  return list.map((q) => mapQuake(q));
 }
 
 export async function generatePlan(quakeId: string): Promise<ResponsePlan> {
@@ -151,12 +187,49 @@ export async function generatePlan(quakeId: string): Promise<ResponsePlan> {
   });
   const riskZones: RiskZone[] = data.zones.map((z, i) => mapZone(z, i));
   const stations: Station[] = data.help_stations.map((s, i) => mapStation(s, i));
-  const routes: Route[] = data.routes.map((r, i) => mapRoute(r, i, stations));
+  const routes: Route[] = (data.routes ?? []).map((r, i) => mapRoute(r, i));
   return {
     summary: data.summary,
     riskZones,
     stations,
     routes,
-    priorityActions: data.priority_actions,
+    priorityActions: data.priority_actions ?? [],
+    plateDistanceKm: data.plate_distance_km ?? undefined,
+    damageScore: data.damage_score ?? undefined,
+    confidence: data.confidence ?? undefined,
+    explanation: data.explanation ?? undefined,
+    plateMotionProxyMmYr: data.plate_motion_proxy_mm_yr ?? undefined,
+    zonesGeoJSON: (data.zones_geojson as ResponsePlan["zonesGeoJSON"]) ?? undefined,
+    safePoints: data.safe_points ?? undefined,
+    infraNodes: data.infra_nodes ?? undefined,
   };
+}
+
+export interface BriefResponse {
+  summary: string;
+  priority_actions: string[];
+  public_message: string;
+}
+
+export async function getBrief(plan: {
+  summary?: string;
+  priority_actions?: string[];
+  damage_score?: number;
+}): Promise<BriefResponse> {
+  return fetchApi<BriefResponse>("/api/brief", {
+    method: "POST",
+    body: JSON.stringify({ plan }),
+  });
+}
+
+export interface VoiceResponse {
+  audio_base64: string;
+  content_type: string;
+}
+
+export async function getVoice(text: string): Promise<VoiceResponse> {
+  return fetchApi<VoiceResponse>("/api/voice", {
+    method: "POST",
+    body: JSON.stringify({ text }),
+  });
 }

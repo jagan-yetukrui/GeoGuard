@@ -9,7 +9,7 @@ import { PlanPanel } from "@/components/PlanPanel";
 import { VoiceBar } from "@/components/VoiceBar";
 import type { RiskLevel } from "@/lib/types";
 import { motion, AnimatePresence } from "framer-motion";
-import { Loader2, FileText, PlayCircle, ShieldCheck, Save } from "lucide-react";
+import { Loader2, FileText, PlayCircle, ShieldCheck, Save, List, Zap, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 function RiskBadge({ level }: { level: RiskLevel }) {
@@ -33,15 +33,23 @@ function RiskBadge({ level }: { level: RiskLevel }) {
 
 export function QuakeSidebar({
   quake,
+  latestQuakes = [],
+  liveQuake = null,
+  viewMode = "live",
   plan,
   planGenerated,
   isGenerating,
   planVerified,
   planSaved,
   briefingPlaying,
+  briefingLoading = false,
   quakeLoading = false,
   planError = null,
   offlineMode = false,
+  onSwitchToLive,
+  onSwitchToLast5,
+  onSelectQuake,
+  onRefreshQuakes,
   onGeneratePlan,
   onRetryPlan,
   onToggleBriefing,
@@ -85,9 +93,94 @@ export function QuakeSidebar({
         </div>
       </div>
 
+      {onSwitchToLive && onSwitchToLast5 && (
+        <div className="flex items-center gap-2">
+          <div className="flex rounded-lg border border-border bg-muted/30 p-0.5">
+            <button
+              type="button"
+              onClick={onSwitchToLive}
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                viewMode === "live"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Zap className="size-3.5" />
+              Live
+            </button>
+            <button
+              type="button"
+              onClick={onSwitchToLast5}
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                viewMode === "last5"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <List className="size-3.5" />
+              Last 5
+            </button>
+          </div>
+          {onRefreshQuakes && (
+            <button
+              type="button"
+              onClick={onRefreshQuakes}
+              disabled={quakeLoading}
+              className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
+              title="Refresh quakes"
+            >
+              <RefreshCw className={cn("size-4", quakeLoading && "animate-spin")} />
+            </button>
+          )}
+        </div>
+      )}
+
+      {viewMode === "last5" && latestQuakes.length > 0 && onSelectQuake && (
+        <Card className="rounded-2xl border border-border shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Latest 5</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1 p-6 pt-0">
+            <ul className="max-h-40 space-y-1 overflow-y-auto">
+              {latestQuakes.map((q) => (
+                <li key={q.id}>
+                  <button
+                    type="button"
+                    onClick={() => onSelectQuake(q)}
+                    className={cn(
+                      "w-full rounded-lg border px-3 py-2 text-left text-xs transition-colors",
+                      quake.id === q.id
+                        ? "border-primary bg-primary/10 text-foreground"
+                        : "border-border hover:bg-muted/50"
+                    )}
+                  >
+                    <span className="font-medium">M{q.magnitude}</span>
+                    <span className="ml-2 text-muted-foreground">
+                      {q.locationName}
+                    </span>
+                    <span className="ml-1 block truncate text-muted-foreground">
+                      {q.timestamp
+                        ? new Date(q.timestamp).toLocaleString(undefined, {
+                            dateStyle: "short",
+                            timeStyle: "short",
+                          })
+                        : "—"}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
       <Card className="rounded-2xl border border-border shadow-sm">
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">Event</CardTitle>
+          <CardTitle className="text-sm font-medium">
+            {viewMode === "live" ? "Live event" : "Selected event"}
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 p-6 pt-0 text-sm">
           {quakeLoading ? (
@@ -171,9 +264,14 @@ export function QuakeSidebar({
             size="sm"
             className="rounded-xl"
             onClick={onToggleBriefing}
+            disabled={briefingLoading || !planGenerated}
           >
-            <PlayCircle className="size-4" />
-            Play Briefing
+            {briefingLoading ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <PlayCircle className="size-4" />
+            )}
+            {briefingLoading ? "Generating…" : "Play Briefing"}
           </Button>
           <Button
             variant="outline"
@@ -212,7 +310,7 @@ export function QuakeSidebar({
           </Card>
         )}
         {planGenerated && plan && !isGenerating && (
-          <PlanPanel plan={plan} verified={planVerified} />
+          <PlanPanel plan={plan} quake={quake} verified={planVerified} />
         )}
       </AnimatePresence>
 
