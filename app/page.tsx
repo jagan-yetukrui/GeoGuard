@@ -3,6 +3,9 @@
 import { useState, useCallback, useEffect } from "react";
 import { MapView } from "@/components/MapView";
 import { QuakeSidebar } from "@/components/QuakeSidebar";
+import { DisasterChat } from "@/components/DisasterChat";
+import { VoiceAgentBubble } from "@/components/VoiceAgentBubble";
+import { VoiceAssistantPopup } from "@/components/VoiceAssistantPopup";
 import { mockQuakeEvent } from "@/lib/mockData";
 import { getLiveQuake, getLatestQuakes, generatePlan, getBrief, getVoice } from "@/lib/api";
 import type { QuakeEvent, ResponsePlan } from "@/lib/types";
@@ -24,6 +27,7 @@ export default function Home() {
   const [briefingLoading, setBriefingLoading] = useState(false);
   const [planVerified, setPlanVerified] = useState(false);
   const [planSaved, setPlanSaved] = useState(false);
+  const [voiceAssistantOpen, setVoiceAssistantOpen] = useState(false);
 
   const loadQuakes = useCallback(async () => {
     setQuakeLoading(true);
@@ -171,6 +175,19 @@ export default function Home() {
           onSavePlan={onSavePlan}
         />
       </div>
+      <VoiceAgentBubble
+        onClick={() => setVoiceAssistantOpen((v) => !v)}
+        open={false}
+      />
+      <DisasterChat selectedQuake={selectedQuake} plan={plan} />
+      <VoiceAssistantPopup
+        open={voiceAssistantOpen}
+        onClose={() => setVoiceAssistantOpen(false)}
+        quake={selectedQuake}
+        plan={plan}
+        anchorBottom={100}
+        anchorRight={88}
+      />
     </main>
   );
 }

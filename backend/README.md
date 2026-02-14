@@ -38,7 +38,7 @@ Risk zoning uses distance to the nearest plate boundary. If `PLATE_BOUNDARIES_UR
 - `USGS_HISTORICAL_DAYS`: Optional; if set, fetch last N days M4+ from USGS FDSNWS for similar-quakes (merged with xlsx if present)
 - `HISTORICAL_QUAKES_PATH`: Optional path to `earthquake_2025.xlsx`; default is project root
 - `PLATE_BOUNDARIES_URL`: Optional URL for PB2002 GeoJSON; if unset, use local `data/plate_boundaries.geojson`
-- `GEMINI_API_KEY`: Optional; required for POST /api/brief (AI summary)
+- `GEMINI_API_KEY`: Optional; required for POST /api/brief (AI summary) and POST /api/chat (911-style disaster chatbot)
 - `ELEVENLABS_API_KEY`: Optional; required for POST /api/voice (text-to-speech)
 
 No secrets required for core plan generation. Brief and voice endpoints return 503 if keys are missing.

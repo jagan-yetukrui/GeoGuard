@@ -14,6 +14,10 @@ from app.settings import settings
 _BOUNDARIES: list[LineString] = []
 MAX_PLATE_DISTANCE_KM = 20000.0  # half Earth circumference; sanity cap
 
+# Display-only: fewer, longer lines for map (USGS-style)
+PLATE_DISPLAY_MIN_LENGTH_KM = 200  # minimum segment length to include in map GeoJSON
+PLATE_DISPLAY_SIMPLIFY_TOLERANCE = 0.15  # Douglas-Peucker tolerance in degrees (0 = no simplify)
+
 
 def _haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
     """Great-circle distance in km between (lat1, lng1) and (lat2, lng2)."""
@@ -50,6 +54,19 @@ def _densify_coords(coords: list[tuple[float, float]], max_segment_km: float = 5
             out.append((lng, lat))
         out.append(coords[i])
     return out
+
+
+def _line_length_km(line: LineString) -> float:
+    """Total length of a LineString in km (sum of haversine distances between consecutive points)."""
+    coords = list(line.coords)
+    if len(coords) < 2:
+        return 0.0
+    total = 0.0
+    for i in range(1, len(coords)):
+        lng1, lat1 = coords[i - 1]
+        lng2, lat2 = coords[i]
+        total += _haversine_km(lat1, lng1, lat2, lng2)
+    return total
 
 
 def _extract_lines(geom: dict) -> list[LineString]:
@@ -118,12 +135,17 @@ def _load_boundaries() -> list[LineString]:
 
 def get_boundaries_geojson() -> dict:
     """
-    Return loaded boundaries as a GeoJSON FeatureCollection (same source as distance_km_to_plate).
-    Each LineString becomes one Feature. Coordinates are [lng, lat] per GeoJSON spec.
+    Return simplified plate boundaries for map display (USGS-style: fewer, longer lines).
+    Full boundaries are still used for distance_km_to_plate. Filter by min length and
+    apply Douglas-Peucker simplification so the map shows major boundaries only.
     """
     boundaries = _load_boundaries()
     features = []
     for line in boundaries:
+        if _line_length_km(line) < PLATE_DISPLAY_MIN_LENGTH_KM:
+            continue
+        if PLATE_DISPLAY_SIMPLIFY_TOLERANCE > 0:
+            line = line.simplify(PLATE_DISPLAY_SIMPLIFY_TOLERANCE)
         coords = [list(c) for c in line.coords]
         if len(coords) >= 2:
             features.append({

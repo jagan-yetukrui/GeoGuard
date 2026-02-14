@@ -11,6 +11,14 @@ from app.schemas import (
     AnalyzeResponse,
     BriefBody,
     BriefResponse,
+    ChatBody,
+    ChatResponse,
+    SummaryBody,
+    SummaryResponse,
+    TriageBody,
+    TriageResponse,
+    VoiceIntroBody,
+    VoiceIntroResponse,
     VoiceBody,
     VoiceResponse,
     ExplanationOut,
@@ -269,12 +277,123 @@ def brief(body: BriefBody):
 
 @router.post("/voice", response_model=VoiceResponse)
 def voice(body: VoiceBody):
-    from app.voice import text_to_speech_base64
-    result = text_to_speech_base64(body.text)
+    from app.settings import get_elevenlabs_api_key
+    from app.voice import VoiceAPIError, text_to_speech_base64
+    if not get_elevenlabs_api_key():
+        raise HTTPException(
+            status_code=503,
+            detail="ELEVENLABS_API_KEY missing. Set it in backend/.env and restart.",
+        )
+    try:
+        result = text_to_speech_base64(body.text)
+    except VoiceAPIError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
     if not result:
         raise HTTPException(
             status_code=503,
-            detail="Voice unavailable. Set ELEVENLABS_API_KEY to enable.",
+            detail="ELEVENLABS_API_KEY missing.",
         )
     audio_b64, content_type = result
     return VoiceResponse(audio_base64=audio_b64, content_type=content_type)
+
+
+@router.post("/assistant/triage", response_model=TriageResponse)
+def assistant_triage(body: TriageBody):
+    """Emergency triage: risk level, next steps, follow-up questions. Decision support only."""
+    from app.settings import get_gemini_api_key
+    from app.assistant import run_triage
+    if not get_gemini_api_key():
+        raise HTTPException(status_code=503, detail="Set GEMINI_API_KEY to enable assistant.")
+    result = run_triage(
+        situation_type=body.situation_type,
+        user_notes=body.user_notes or "",
+        lat=body.lat,
+        lng=body.lng,
+        quake_context=body.quake_context,
+        answers_so_far=body.answers_so_far,
+    )
+    if not result:
+        raise HTTPException(status_code=503, detail="Triage unavailable.")
+    return TriageResponse(
+        risk_level=result["risk_level"],
+        next_steps=result.get("next_steps", []),
+        questions=result.get("questions", []),
+    )
+
+
+@router.post("/assistant/summary", response_model=SummaryResponse)
+def assistant_summary(body: SummaryBody):
+    """Generate 911-ready script from triage + answers. Decision support only."""
+    from app.settings import get_gemini_api_key
+    from app.assistant import generate_911_summary
+    if not get_gemini_api_key():
+        raise HTTPException(status_code=503, detail="Set GEMINI_API_KEY to enable assistant.")
+    script = generate_911_summary(
+        situation_type=body.situation_type,
+        risk_level=body.risk_level,
+        user_notes=body.user_notes or "",
+        location_text=body.location_text or "",
+        answers=body.answers,
+        num_people=body.num_people,
+        best_access=body.best_access or "",
+    )
+    if not script:
+        raise HTTPException(status_code=503, detail="Summary unavailable.")
+    return SummaryResponse(script_911=script)
+
+
+@router.post("/assistant/voice-intro", response_model=VoiceIntroResponse)
+def assistant_voice_intro(body: VoiceIntroBody):
+    """Generate a short spoken intro for the voice 911 assistant using live disaster data."""
+    from app.settings import get_gemini_api_key
+    from app.assistant import generate_voice_intro
+    if not get_gemini_api_key():
+        raise HTTPException(status_code=503, detail="Set GEMINI_API_KEY to enable voice assistant.")
+    script = generate_voice_intro(
+        quake_place=body.quake_place or "",
+        quake_mag=body.quake_mag,
+        depth_km=body.depth_km,
+        plan_summary=body.plan_summary or "",
+        priority_actions=body.priority_actions,
+    )
+    if not script:
+        raise HTTPException(status_code=503, detail="Voice intro unavailable.")
+    return VoiceIntroResponse(script=script)
+
+
+@router.get("/chat/health")
+def chat_health():
+    """Return whether chat is configured (key loaded, model). Never exposes the key."""
+    from app.settings import get_gemini_api_key
+    from app.chat import GEMINI_MODEL
+    key = get_gemini_api_key()
+    return {
+        "configured": bool(key),
+        "key_loaded": bool(key),
+        "model": GEMINI_MODEL,
+    }
+
+
+@router.post("/chat", response_model=ChatResponse)
+def chat(body: ChatBody):
+    from app.settings import get_gemini_api_key
+    from app.chat import chat_with_disaster_context
+    key = get_gemini_api_key()
+    if not key:
+        raise HTTPException(
+            status_code=503,
+            detail="Set GEMINI_API_KEY to enable chat.",
+        )
+    reply = chat_with_disaster_context(
+        body.message,
+        quake_place=body.quake_place,
+        quake_mag=body.quake_mag,
+        quake_depth_km=body.quake_depth_km,
+        plan_summary=body.plan_summary,
+        priority_actions=body.priority_actions,
+        damage_score=body.damage_score,
+        confidence=body.confidence,
+    )
+    if not reply:
+        raise HTTPException(status_code=503, detail="Chat unavailable.")
+    return ChatResponse(reply=reply)

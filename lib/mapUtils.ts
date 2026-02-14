@@ -6,6 +6,66 @@ export interface GeoJSONPolygon {
   coordinates: [number[][]];
 }
 
+/** Bounding box in degrees (south, north, west, east). */
+export interface LatLngBbox {
+  south: number;
+  north: number;
+  west: number;
+  east: number;
+}
+
+/** Bounding box around a point with given radius in km. */
+export function bboxAround(
+  lat: number,
+  lng: number,
+  radiusKm: number
+): LatLngBbox {
+  const degPerKmLat = 1 / 111;
+  const degPerKmLng = 1 / (111 * Math.max(0.01, Math.cos((lat * Math.PI) / 180)));
+  const dLat = radiusKm * degPerKmLat;
+  const dLng = radiusKm * degPerKmLng;
+  return {
+    south: lat - dLat,
+    north: lat + dLat,
+    west: lng - dLng,
+    east: lng + dLng,
+  };
+}
+
+/** True if (lat, lng) is inside bbox. */
+function pointInBbox(lat: number, lng: number, b: LatLngBbox): boolean {
+  return lat >= b.south && lat <= b.north && lng >= b.west && lng <= b.east;
+}
+
+/** True if any vertex of the GeoJSON geometry is inside the bbox. */
+export function geoJSONFeatureIntersectsBbox(
+  feature: GeoJSON.Feature,
+  bbox: LatLngBbox
+): boolean {
+  const g = feature.geometry;
+  if (!g || g.type === "Point") return false;
+  if (g.type === "LineString") {
+    return g.coordinates.some((c) => pointInBbox(c[1], c[0], bbox));
+  }
+  if (g.type === "MultiLineString") {
+    return g.coordinates.some((part) =>
+      part.some((c) => pointInBbox(c[1], c[0], bbox))
+    );
+  }
+  return false;
+}
+
+/** Filter GeoJSON FeatureCollection to features intersecting the bbox. */
+export function clipGeoJSONToBbox(
+  fc: GeoJSON.FeatureCollection,
+  bbox: LatLngBbox
+): GeoJSON.FeatureCollection {
+  const features = (fc.features || []).filter((f) =>
+    geoJSONFeatureIntersectsBbox(f, bbox)
+  );
+  return { type: "FeatureCollection", features };
+}
+
 /**
  * Converts radius in km to meters.
  */

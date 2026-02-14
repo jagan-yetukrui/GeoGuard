@@ -46,11 +46,17 @@ def polygonize(
         elif level == "safe":
             safe_cells.append({"lat": lat, "lng": lng})
 
+    # Simplify tolerance in degrees (~1.3 km) to smooth blocky grid edges
+    SIMPLIFY_TOLERANCE = 0.012
+
     features = []
     for level in ("high", "medium", "low"):
         if not by_level[level]:
             continue
         union = unary_union(by_level[level])
+        if union.is_empty:
+            continue
+        union = union.simplify(SIMPLIFY_TOLERANCE, preserve_topology=True)
         if union.is_empty:
             continue
         # Convert to GeoJSON-friendly geom

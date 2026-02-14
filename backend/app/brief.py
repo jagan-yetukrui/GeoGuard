@@ -15,7 +15,7 @@ def generate_brief(plan: dict) -> tuple[str, list[str], str] | None:
     try:
         import google.generativeai as genai
         genai.configure(api_key=key)
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        model = genai.GenerativeModel("gemini-2.5-flash")
         summary_in = plan.get("summary", "")[:500]
         actions_in = plan.get("priority_actions", [])[:10]
         prompt = f"""You are an emergency response coordinator. Given this earthquake response plan summary and actions, return exactly three items in this format (no other text):

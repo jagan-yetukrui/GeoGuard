@@ -233,3 +233,94 @@ export async function getVoice(text: string): Promise<VoiceResponse> {
     body: JSON.stringify({ text }),
   });
 }
+
+export interface ChatContext {
+  quake_place?: string;
+  quake_mag?: number;
+  quake_depth_km?: number;
+  plan_summary?: string;
+  priority_actions?: string[];
+  damage_score?: number;
+  confidence?: string;
+}
+
+export interface ChatResponse {
+  reply: string;
+}
+
+export async function getChatResponse(
+  message: string,
+  context?: ChatContext
+): Promise<ChatResponse> {
+  return fetchApi<ChatResponse>("/api/chat", {
+    method: "POST",
+    body: JSON.stringify({
+      message,
+      quake_place: context?.quake_place,
+      quake_mag: context?.quake_mag,
+      quake_depth_km: context?.quake_depth_km,
+      plan_summary: context?.plan_summary,
+      priority_actions: context?.priority_actions,
+      damage_score: context?.damage_score,
+      confidence: context?.confidence,
+    }),
+  });
+}
+
+export type TriageRiskLevel = "critical" | "urgent" | "stable";
+
+export interface TriageResponse {
+  risk_level: TriageRiskLevel;
+  next_steps: string[];
+  questions: string[];
+}
+
+export async function getTriage(params: {
+  situation_type: string;
+  user_notes?: string;
+  lat?: number;
+  lng?: number;
+  quake_context?: string;
+  answers_so_far?: Record<string, string>;
+}): Promise<TriageResponse> {
+  return fetchApi<TriageResponse>("/api/assistant/triage", {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
+}
+
+export interface AssistantSummaryResponse {
+  script_911: string;
+}
+
+export async function get911Summary(params: {
+  situation_type: string;
+  risk_level: string;
+  user_notes?: string;
+  location_text?: string;
+  answers?: Record<string, string>;
+  num_people?: number;
+  best_access?: string;
+}): Promise<AssistantSummaryResponse> {
+  return fetchApi<AssistantSummaryResponse>("/api/assistant/summary", {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
+}
+
+export interface VoiceIntroResponse {
+  script: string;
+}
+
+export async function getVoiceIntro(params: {
+  quake_place?: string;
+  quake_mag?: number;
+  depth_km?: number;
+  plan_summary?: string;
+  priority_actions?: string[];
+}): Promise<VoiceIntroResponse> {
+  return fetchApi<VoiceIntroResponse>("/api/assistant/voice-intro", {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
+}

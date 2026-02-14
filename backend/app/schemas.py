@@ -104,6 +104,62 @@ class VoiceResponse(BaseModel):
     content_type: str = "audio/mpeg"
 
 
+class ChatBody(BaseModel):
+    message: str
+    quake_place: str | None = None
+    quake_mag: float | None = None
+    quake_depth_km: float | None = None
+    plan_summary: str | None = None
+    priority_actions: list[str] | None = None
+    damage_score: int | None = None
+    confidence: str | None = None
+
+
+class ChatResponse(BaseModel):
+    reply: str
+
+
+class TriageBody(BaseModel):
+    situation_type: str = Field(..., description="e.g. injured, trapped, evac_route, medical_steps")
+    user_notes: str | None = None
+    lat: float | None = None
+    lng: float | None = None
+    quake_context: str | None = None
+    answers_so_far: dict[str, str] | None = None
+
+
+class TriageResponse(BaseModel):
+    risk_level: Literal["critical", "urgent", "stable"]
+    next_steps: list[str]
+    questions: list[str]
+
+
+class SummaryBody(BaseModel):
+    situation_type: str
+    risk_level: str
+    user_notes: str | None = None
+    location_text: str | None = None
+    answers: dict[str, str] | None = None
+    num_people: int | None = None
+    best_access: str | None = None
+
+
+class SummaryResponse(BaseModel):
+    script_911: str
+
+
+class VoiceIntroBody(BaseModel):
+    quake_place: str | None = None
+    quake_mag: float | None = None
+    depth_km: float | None = None
+    plan_summary: str | None = None
+    priority_actions: list[str] | None = None
+
+
+class VoiceIntroResponse(BaseModel):
+    script: str
+
+
 class PlanResponse(BaseModel):
     zones: list[ZoneOut]
     help_stations: list[HelpStationOut]

@@ -12,7 +12,11 @@ import type {
   SafePoint,
   InfraNode,
 } from "@/lib/types";
-import { radiusKmToMeters } from "@/lib/mapUtils";
+import {
+  radiusKmToMeters,
+  bboxAround,
+  clipGeoJSONToBbox,
+} from "@/lib/mapUtils";
 
 export type MapViewProps = {
   quake: QuakeEvent;
@@ -122,11 +126,22 @@ export function MapView({
   const safePointMarkersRef = useRef<L.Marker[]>([]);
   const infraMarkersRef = useRef<L.Marker[]>([]);
   const [mapReady, setMapReady] = useState(false);
+  const [plateDataReady, setPlateDataReady] = useState(false);
+  const plateGeoJSONRef = useRef<GeoJSON.FeatureCollection | null>(null);
 
   const center: [number, number] = [
     quake.coordinates.lat,
     quake.coordinates.lng,
   ];
+
+  const DEFAULT_ZOOM = 9;
+  const PLATE_CLIP_RADIUS_KM = 600;
+  const FIT_PADDING_PX = 40;
+  const MAX_ZOOM = 15;
+  /** Allow 13 zoom-out steps from max: 15 → 2. */
+  const MIN_ZOOM = MAX_ZOOM - 13;
+  /** Max lat or lng span for fitBounds; avoid fitting to near-global extent. */
+  const MAX_FIT_SPAN_DEG = 45;
 
   useEffect(() => {
     if (typeof window === "undefined" || !containerRef.current) return;
@@ -144,10 +159,17 @@ export function MapView({
         iconUrl: "data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22/>",
         shadowUrl: "",
       });
-      const map = L.map(containerRef.current!).setView(center, 10);
+      const map = L.map(containerRef.current!, {
+        maxBounds: L.latLngBounds(L.latLng(-85, -180), L.latLng(85, 180)),
+        maxBoundsViscosity: 1,
+        minZoom: MIN_ZOOM,
+        maxZoom: MAX_ZOOM,
+        worldCopyJump: false,
+      }).setView(center, DEFAULT_ZOOM);
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution:
           '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        noWrap: true,
       }).addTo(map);
       if (cancelled) {
         map.remove();
@@ -155,19 +177,18 @@ export function MapView({
       }
       mapRef.current = map;
       setMapReady(true);
-      // Plate boundaries layer (same source as backend distance_km_to_plate)
-      const base = typeof window !== "undefined" && (process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000");
-      fetch(`${base.replace(/\/$/, "")}/api/plates/geojson`)
+      const baseUrl =
+        typeof window !== "undefined"
+          ? (process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000")
+          : "http://localhost:8000";
+      fetch(`${String(baseUrl).replace(/\/$/, "")}/api/plates/geojson`)
         .then((res) => (res.ok ? res.json() : null))
         .then((geojson: GeoJSON.FeatureCollection | null) => {
-          if (cancelled || !mapRef.current || !geojson?.features?.length) return;
-          const L = leafletRef.current as typeof import("leaflet") | null;
-          if (!L) return;
-          const layer = L.geoJSON(geojson as Parameters<L["geoJSON"]>[0], {
-            style: () => ({ color: "#dc2626", weight: 1, opacity: 0.8 }),
-          });
-          layer.addTo(mapRef.current!);
-          plateBoundariesRef.current = layer;
+          if (cancelled) return;
+          if (geojson?.features?.length) {
+            plateGeoJSONRef.current = geojson;
+            setPlateDataReady(true);
+          }
         })
         .catch(() => {});
     })();
@@ -198,10 +219,64 @@ export function MapView({
     };
   }, []);
 
+  // Center on quake; zoom 9 when no plan. Do NOT include plate boundaries in any fit.
   useEffect(() => {
-    if (!mapRef.current) return;
-    mapRef.current.setView(center, mapRef.current.getZoom());
-  }, [center[0], center[1]]);
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    if (!showPlan) {
+      map.setView(center, DEFAULT_ZOOM);
+    }
+  }, [mapReady, center[0], center[1], showPlan]);
+
+  // Plate boundaries: clip to local bbox (600km), only show when zoom >= 6
+  useEffect(() => {
+    const L = leafletRef.current as typeof import("leaflet") | null;
+    const map = mapRef.current;
+    if (!L || !map || !mapReady || !plateDataReady || !plateGeoJSONRef.current) return;
+    plateBoundariesRef.current?.remove();
+    plateBoundariesRef.current = null;
+    const zoom = map.getZoom();
+    if (zoom < 6) return;
+    const bbox = bboxAround(center[0], center[1], PLATE_CLIP_RADIUS_KM);
+    const raw = plateGeoJSONRef.current;
+    if (!raw) return;
+    const clipped = clipGeoJSONToBbox(raw, bbox);
+    if (!clipped.features.length) return;
+    const layer = L.geoJSON(clipped as GeoJSON.FeatureCollection, {
+      style: () => ({ color: "#94a3b8", weight: 1, opacity: 0.45 }),
+    });
+    layer.addTo(map);
+    plateBoundariesRef.current = layer;
+  }, [mapReady, plateDataReady, center[0], center[1]]);
+
+  // When map zoom changes, show/hide plate layer (only at zoom >= 6)
+  useEffect(() => {
+    const L = leafletRef.current as typeof import("leaflet") | null;
+    const map = mapRef.current;
+    if (!L || !map || !mapReady || !plateGeoJSONRef.current) return;
+    const handler = () => {
+      const zoom = map.getZoom();
+      const plateData = plateGeoJSONRef.current;
+      if (zoom >= 6 && !plateBoundariesRef.current && plateData) {
+        const bbox = bboxAround(center[0], center[1], PLATE_CLIP_RADIUS_KM);
+        const clipped = clipGeoJSONToBbox(plateData, bbox);
+        if (clipped.features.length) {
+          const layer = L.geoJSON(clipped as GeoJSON.FeatureCollection, {
+            style: () => ({ color: "#94a3b8", weight: 1, opacity: 0.45 }),
+          });
+          layer.addTo(map);
+          plateBoundariesRef.current = layer;
+        }
+      } else if (zoom < 6 && plateBoundariesRef.current) {
+        plateBoundariesRef.current.remove();
+        plateBoundariesRef.current = null;
+      }
+    };
+    map.on("zoomend", handler);
+    return () => {
+      map.off("zoomend", handler);
+    };
+  }, [mapReady, plateDataReady, center[0], center[1]]);
 
   useEffect(() => {
     const L = leafletRef.current as typeof import("leaflet") | null;
@@ -246,7 +321,7 @@ export function MapView({
 
     const useGeoJSON = zonesGeoJSON?.features?.length;
     if (useGeoJSON && zonesGeoJSON) {
-      const layer = L.geoJSON(zonesGeoJSON as Parameters<L["geoJSON"]>[0], {
+      const layer = L.geoJSON(zonesGeoJSON as GeoJSON.FeatureCollection, {
         style: (feature) => {
           const level = feature?.properties?.level ?? "low";
           const colors = ZONE_COLORS[level] ?? ZONE_COLORS.low;
@@ -343,6 +418,44 @@ export function MapView({
       );
       stationMarkersRef.current.push(marker);
     });
+
+    // Fit bounds to quake + zones + stations only (never plate boundaries)
+    const bounds = L.latLngBounds(center as [number, number], center as [number, number]);
+    stations.forEach((s) => bounds.extend([s.coordinates.lat, s.coordinates.lng]));
+    if (zoneGeoJSONRef.current) {
+      try {
+        bounds.extend(zoneGeoJSONRef.current.getBounds());
+      } catch {
+        bounds.extend(center as [number, number]);
+      }
+    } else {
+      zoneCirclesRef.current.forEach((c) => {
+        try {
+          bounds.extend(c.getBounds());
+        } catch {
+          bounds.extend(center as [number, number]);
+        }
+      });
+    }
+    routes.forEach((r) => {
+      r.waypoints.forEach((w) => bounds.extend([w.lat, w.lng]));
+    });
+    try {
+      const ne = bounds.getNorthEast();
+      const sw = bounds.getSouthWest();
+      const spanLat = Math.abs(ne.lat - sw.lat);
+      const spanLng = Math.abs(ne.lng - sw.lng);
+      if (spanLat > MAX_FIT_SPAN_DEG || spanLng > MAX_FIT_SPAN_DEG) {
+        map.setView(center, DEFAULT_ZOOM);
+      } else {
+        map.fitBounds(bounds, {
+          padding: [FIT_PADDING_PX, FIT_PADDING_PX],
+          maxZoom: MAX_ZOOM - 1,
+        });
+      }
+    } catch {
+      map.setView(center, DEFAULT_ZOOM);
+    }
   }, [
     mapReady,
     showPlan,
