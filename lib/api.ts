@@ -4,6 +4,8 @@ import type {
   RiskZone,
   Station,
   Route,
+  ChatMessage,
+  ChatbotResponse,
 } from "./types";
 
 const DEFAULT_BASE = "http://localhost:8000";
@@ -231,5 +233,44 @@ export async function getVoice(text: string): Promise<VoiceResponse> {
   return fetchApi<VoiceResponse>("/api/voice", {
     method: "POST",
     body: JSON.stringify({ text }),
+  });
+}
+export async function chatWithBot(
+  message: string,
+  quakeId?: string,
+  plan?: ResponsePlan,
+  chatHistory?: ChatMessage[]
+): Promise<ChatbotResponse> {
+  // Convert plan to backend format if available
+  const planData = plan
+    ? {
+        summary: plan.summary,
+        damage_score: plan.damageScore,
+        priority_actions: plan.priorityActions,
+        zones: plan.riskZones?.map((z) => ({
+          level: z.level,
+          radius_km: z.radiusKm,
+        })),
+        help_stations: plan.stations?.map((s) => ({
+          name: s.name,
+          type: s.type,
+          lat: s.coordinates.lat,
+          lng: s.coordinates.lng,
+        })),
+        zones_geojson: plan.zonesGeoJSON,
+      }
+    : undefined;
+
+  return fetchApi<ChatbotResponse>("/api/chat", {
+    method: "POST",
+    body: JSON.stringify({
+      message,
+      quake_id: quakeId,
+      plan: planData,
+      chat_history: chatHistory?.map((m) => ({
+        role: m.role,
+        content: m.content,
+      })),
+    }),
   });
 }

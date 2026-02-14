@@ -10,11 +10,4 @@ class Settings(BaseSettings):
         "https://raw.githubusercontent.com/fraxen/tectonicplates/master/GeoJSON/PB2002_boundaries.json"
     )  # PB2002 global boundaries; fallback to local file on fetch failure
     gemini_api_key: str | None = None
-    elevenlabs_api_key: str | None = None
-
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-
-
-settings = Settings()
+    google_api_key: str | None = None  # For Google Generative AI (chatbot)

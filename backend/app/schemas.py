@@ -120,3 +120,30 @@ class PlanResponse(BaseModel):
     zones_geojson: dict[str, Any] | None = None
     safe_points: list[SafePointOut] | None = None
     infra_nodes: list[InfraNodeOut] | None = None
+
+class ChatMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
+
+
+class ChatbotQueryBody(BaseModel):
+    message: str
+    quake_id: str | None = None
+    plan: dict[str, Any] | None = None
+    chat_history: list[ChatMessage] | None = None
+
+
+class ChatbotResponse(BaseModel):
+    message: str
+    error: str | None = None
+    quick_actions: list[str] | None = None
+
+
+class VoiceInputBody(BaseModel):
+    audio_base64: str
+    context: str | None = None
+
+
+class VoiceInputResponse(BaseModel):
+    transcribed_text: str
+    error: str | None = None

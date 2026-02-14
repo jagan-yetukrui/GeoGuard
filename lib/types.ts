@@ -91,3 +91,21 @@ export interface ResponsePlan {
   safePoints?: SafePoint[] | null;
   infraNodes?: InfraNode[] | null;
 }
+export type ChatMessageRole = "user" | "assistant";
+
+export interface ChatMessage {
+  role: ChatMessageRole;
+  content: string;
+  timestamp?: string;
+}
+
+export interface ChatbotResponse {
+  message: string;
+  error?: string | null;
+  quick_actions?: string[] | null;
+}
+
+export interface VoiceInputResponse {
+  transcribed_text: string;
+  error?: string | null;
+}

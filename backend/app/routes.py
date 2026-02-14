@@ -22,6 +22,8 @@ from app.schemas import (
     SafePointOut,
     InfraNodeOut,
     RouteOut,
+    ChatbotQueryBody,
+    ChatbotResponse,
 )
 from app.usgs import get_live_quake
 from app.zoning import compute_zoning
@@ -278,3 +280,83 @@ def voice(body: VoiceBody):
         )
     audio_b64, content_type = result
     return VoiceResponse(audio_base64=audio_b64, content_type=content_type)
+
+@router.post("/chat", response_model=ChatbotResponse)
+def chat(body: ChatbotQueryBody):
+    """
+    Chatbot endpoint for general queries about current earthquake situation.
+    Provides actionable suggestions based on damage assessment and response plan.
+    
+    Args:
+        message: User's question or request
+        quake_id: ID of the earthquake (optional, loads from cache)
+        plan: Full response plan data (optional)
+        chat_history: Previous messages for context (optional)
+    
+    Returns:
+        ChatbotResponse with message, any errors, and quick actions if available
+    """
+    from app.chatbot import get_chatbot_response, get_emergency_suggestions
+    from app.usgs import get_quake_by_id
+    
+    quake_data = None
+    damage_score = None
+    zones = None
+    
+    # Load quake context if ID provided
+    if body.quake_id:
+        q = get_quake_by_id(body.quake_id)
+        if q:
+            quake_data = {
+                "id": q.get("id"),
+                "place": q.get("place"),
+                "time": q.get("time"),
+                "mag": q.get("mag"),
+                "depth_km": q.get("depth_km"),
+                "lat": q.get("lat"),
+                "lng": q.get("lng"),
+            }
+    
+    # Extract plan context
+    plan_data = body.plan
+    if plan_data:
+        damage_score = plan_data.get("damage_score")
+        zones = plan_data.get("zones", [])
+        if not zones:
+            # Build zones from zones_geojson if available
+            geojson = plan_data.get("zones_geojson")
+            if geojson and "features" in geojson:
+                zones = [
+                    {
+                        "level": f.get("properties", {}).get("level", "unknown"),
+                        "radius_km": f.get("properties", {}).get("radius_km", 0),
+                    }
+                    for f in geojson["features"]
+                ]
+    
+    # Convert chat_history to dict format for chatbot
+    chat_history = None
+    if body.chat_history:
+        chat_history = [{"role": m.role, "content": m.content} for m in body.chat_history]
+    
+    # Get AI response
+    response_text, error = get_chatbot_response(
+        user_message=body.message,
+        quake_data=quake_data,
+        plan_data=plan_data,
+        damage_score=damage_score,
+        zones=zones,
+        chat_history=chat_history,
+    )
+    
+    # Get quick actions if high severity
+    quick_actions = None
+    if damage_score and damage_score > 5:
+        severity = "critical" if damage_score > 7 else "high"
+        quick_actions = get_emergency_suggestions(severity=severity, quake_data=quake_data)[:3]
+    
+    return ChatbotResponse(
+        message=response_text if not error else "I'm having trouble processing your request. Try: Check your location, Follow marked routes, or Contact emergency services.",
+        error=error,
+        quick_actions=quick_actions,
+    )

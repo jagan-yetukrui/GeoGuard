@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { QuakeSidebarProps } from "@/components/QuakeSidebar.types";
 import { PlanPanel } from "@/components/PlanPanel";
 import { VoiceBar } from "@/components/VoiceBar";
+import { ChatPanel } from "@/components/ChatPanel";
 import type { RiskLevel } from "@/lib/types";
 import { motion, AnimatePresence } from "framer-motion";
 import { Loader2, FileText, PlayCircle, ShieldCheck, Save, List, Zap, RefreshCw } from "lucide-react";
@@ -317,6 +318,12 @@ export function QuakeSidebar({
       <VoiceBar
         briefingPlaying={briefingPlaying}
         onToggleBriefing={onToggleBriefing}
+      />
+
+      <ChatPanel
+        quakeId={quake?.id}
+        plan={plan ?? undefined}
+        isActive={planGenerated}
       />
     </aside>
   );
