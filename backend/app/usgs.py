@@ -8,25 +8,42 @@ from typing import Any
 
 import httpx
 
+from app.landmask import filter_land_points, is_land
 from app.settings import settings
 
-USGS_FEED_URL = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson"
+USGS_FEED_URL = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson"
+USGS_FEED_LIVE_URL = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_hour.geojson"
 USGS_FDSNWS_QUERY = "https://earthquake.usgs.gov/fdsnws/event/1/query"
 
 _cache: dict[str, Any] = {}
 _cache_time: float = 0.0
 
 
-def _fetch_raw() -> list[dict] | None:
+def _fetch_raw(url: str | None = None) -> list[dict] | None:
+    target = url or USGS_FEED_URL
     try:
         with httpx.Client(timeout=15.0) as client:
-            r = client.get(USGS_FEED_URL)
+            r = client.get(target)
             r.raise_for_status()
             data = r.json()
     except (httpx.HTTPError, ValueError):
         return None
     features = data.get("features", [])
     return features
+
+
+def _fetch_and_normalize(url: str) -> list[dict]:
+    """Fetch from URL and return normalized quakes on land (newest first). Excludes ocean only."""
+    features = _fetch_raw(url)
+    quakes = []
+    if features:
+        for f in features:
+            q = _normalize(f)
+            if q:
+                quakes.append(q)
+        quakes.sort(key=lambda q: q.get("time") or "", reverse=True)
+        quakes = filter_land_points(quakes, lat_key="lat", lng_key="lng")
+    return quakes
 
 
 def fetch_event_by_id(event_id: str) -> dict | None:
@@ -44,7 +61,10 @@ def fetch_event_by_id(event_id: str) -> dict | None:
     features = data.get("features", [])
     if not features:
         return None
-    return _normalize(features[0])
+    q = _normalize(features[0])
+    if q and is_land(q["lat"], q["lng"]):
+        return q
+    return None
 
 
 def fetch_events(
@@ -131,25 +151,41 @@ def _ensure_cache() -> list[dict]:
                 if q:
                     quakes.append(q)
             quakes.sort(key=lambda q: q.get("time") or "", reverse=True)
+            quakes = filter_land_points(quakes, lat_key="lat", lng_key="lng")
         _cache["quakes"] = quakes
     return _cache.get("quakes") or []
 
 
-def get_latest_quakes(limit: int = 5) -> list[dict]:
-    """Return the most recent `limit` quakes from the USGS all_day feed (newest first)."""
-    quakes = _ensure_cache()
+def get_latest_quakes(limit: int = 5, exclude_live: bool = True) -> list[dict]:
+    """
+    Return the most recent `limit` M2.5+ quakes on land.
+    When exclude_live=True (default), skips the live quake so Last 5 shows the ones before it.
+    Uses 2.5_hour first, then 2.5_day.
+    """
+    hour_quakes = _fetch_and_normalize(USGS_FEED_LIVE_URL)
+    if len(hour_quakes) < limit + (1 if exclude_live else 0):
+        day_quakes = _ensure_cache()
+        seen: set[str] = {q["id"] for q in hour_quakes}
+        for q in day_quakes:
+            if q["id"] not in seen:
+                seen.add(q["id"])
+                hour_quakes.append(q)
+        hour_quakes.sort(key=lambda q: q.get("time") or "", reverse=True)
+    if exclude_live and hour_quakes:
+        live_id = hour_quakes[0]["id"]
+        quakes = [q for q in hour_quakes if q["id"] != live_id]
+    else:
+        quakes = hour_quakes
     return quakes[:limit]
 
 
 def get_live_quake() -> dict | None:
-    """Return the single 'live' quake: highest magnitude among M4+ in the feed, else strongest."""
+    """Return the most recent M2.5+ quake on land. Uses 2.5_hour first, then 2.5_day fallback."""
+    hour_quakes = _fetch_and_normalize(USGS_FEED_LIVE_URL)
+    if hour_quakes:
+        return hour_quakes[0]
     quakes = _ensure_cache()
-    if not quakes:
-        return None
-    significant = [q for q in quakes if q["mag"] >= 4.0]
-    pool = significant if significant else quakes
-    strongest = max(pool, key=lambda q: (q["mag"], q["time"]))
-    return strongest
+    return quakes[0] if quakes else None
 
 
 def get_quake_by_id(quake_id: str) -> dict | None:

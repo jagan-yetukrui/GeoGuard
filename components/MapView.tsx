@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useCallback, useState } from "react";
+import { useEffect, useRef, useCallback, useState, forwardRef, useImperativeHandle } from "react";
 import type L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type {
@@ -30,7 +30,13 @@ export type MapViewProps = {
   safePoints?: SafePoint[] | null;
   infraNodes?: InfraNode[] | null;
   zonePois?: { high: ZonePoi[]; medium: ZonePoi[]; low: ZonePoi[] } | null;
+  highlightedRouteId?: string;
+  userLocation?: { lat: number; lng: number } | null;
 };
+
+export interface MapViewHandle {
+  fitToRoute: (route: Route) => void;
+}
 
 const ZONE_COLORS: Record<
   string,
@@ -89,29 +95,18 @@ const ZONE_POI_ZONE_LABELS: Record<string, string> = {
 
 function createZonePoiMarkerElement(
   poiType: string,
-  zoneLevel: "high" | "medium" | "low"
+  _zoneLevel: "high" | "medium" | "low"
 ): HTMLDivElement {
-  const zoneColors: Record<string, string> = {
-    high: "#ef4444",
-    medium: "#f59e0b",
-    low: "#10b981",
-  };
-  const borderColor = zoneColors[zoneLevel] ?? zoneColors.low;
   const el = document.createElement("div");
   el.className = "zone-poi-marker";
-  el.style.width = "28px";
-  el.style.height = "28px";
-  el.style.borderRadius = "6px";
-  el.style.background = "white";
-  el.style.border = `2px solid ${borderColor}`;
-  el.style.boxShadow = "0 2px 4px rgba(0,0,0,0.2)";
+  el.style.width = "24px";
+  el.style.height = "24px";
   el.style.display = "flex";
   el.style.alignItems = "center";
   el.style.justifyContent = "center";
-  el.style.padding = "2px";
   el.innerHTML = getInfraIcon(poiType)
-    .replace('width="24"', 'width="20"')
-    .replace('height="24"', 'height="20"');
+    .replace('width="24"', 'width="24"')
+    .replace('height="24"', 'height="24"');
   return el;
 }
 
@@ -128,19 +123,26 @@ function createQuakeMarkerElement(): HTMLDivElement {
 function createStationMarkerElement(type: string): HTMLDivElement {
   const el = document.createElement("div");
   el.className = "station-marker";
-  el.style.width = "36px";
-  el.style.height = "36px";
-  el.style.borderRadius = "8px";
-  el.style.background = "white";
-  el.style.border = "2px solid #2563eb";
-  el.style.boxShadow = "0 2px 8px rgba(0,0,0,0.2)";
+  el.style.width = "24px";
+  el.style.height = "24px";
   el.style.display = "flex";
   el.style.alignItems = "center";
   el.style.justifyContent = "center";
-  el.style.padding = "4px";
   el.innerHTML = getInfraIcon(type)
     .replace('width="24"', 'width="24"')
     .replace('height="24"', 'height="24"');
+  return el;
+}
+
+function createUserLocationElement(): HTMLDivElement {
+  const el = document.createElement("div");
+  el.className = "user-location-marker";
+  el.style.width = "24px";
+  el.style.height = "24px";
+  el.style.borderRadius = "50%";
+  el.style.background = "rgba(59, 130, 246, 0.3)";
+  el.style.border = "3px solid #2563eb";
+  el.style.boxShadow = "0 0 0 2px white";
   return el;
 }
 
@@ -158,23 +160,18 @@ function createSafePointElement(): HTMLDivElement {
 function createInfraMarkerElement(type: string): HTMLDivElement {
   const el = document.createElement("div");
   el.className = "infra-marker";
-  el.style.width = "32px";
-  el.style.height = "32px";
-  el.style.borderRadius = "8px";
-  el.style.background = "white";
-  el.style.border = "2px solid #e5e7eb";
-  el.style.boxShadow = "0 2px 6px rgba(0,0,0,0.15)";
+  el.style.width = "24px";
+  el.style.height = "24px";
   el.style.display = "flex";
   el.style.alignItems = "center";
   el.style.justifyContent = "center";
-  el.style.padding = "4px";
   el.innerHTML = getInfraIcon(type)
-    .replace('width="24"', 'width="22"')
-    .replace('height="24"', 'height="22"');
+    .replace('width="24"', 'width="24"')
+    .replace('height="24"', 'height="24"');
   return el;
 }
 
-export function MapView({
+export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView({
   quake,
   zones,
   stations,
@@ -184,15 +181,18 @@ export function MapView({
   safePoints,
   infraNodes,
   zonePois,
-}: MapViewProps) {
+  highlightedRouteId,
+  userLocation,
+}, ref) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
+  const routePolylineRef = useRef<L.Polyline | null>(null);
+  const userLocationMarkerRef = useRef<L.Marker | null>(null);
   const leafletRef = useRef<unknown>(null);
   const quakeMarkerRef = useRef<L.Marker | null>(null);
   const zoneCirclesRef = useRef<L.Circle[]>([]);
   const zoneGeoJSONRef = useRef<L.GeoJSON | null>(null);
   const plateBoundariesRef = useRef<L.GeoJSON | null>(null);
-  const routePolylinesRef = useRef<L.Polyline[]>([]);
   const stationMarkersRef = useRef<L.Marker[]>([]);
   const safePointMarkersRef = useRef<L.Marker[]>([]);
   const infraMarkersRef = useRef<L.Marker[]>([]);
@@ -214,6 +214,32 @@ export function MapView({
   const MIN_ZOOM = MAX_ZOOM - 13;
   /** Max lat or lng span for fitBounds; avoid fitting to near-global extent. */
   const MAX_FIT_SPAN_DEG = 45;
+
+  useImperativeHandle(ref, () => ({
+    fitToRoute(route: Route) {
+      const map = mapRef.current;
+      const L = leafletRef.current as typeof import("leaflet") | null;
+      if (!map || !L || !route.waypoints?.length) return;
+      const latLngs: [number, number][] = route.waypoints.map((w) => [w.lat, w.lng]);
+      const bounds = L.latLngBounds(latLngs);
+      try {
+        const ne = bounds.getNorthEast();
+        const sw = bounds.getSouthWest();
+        const spanLat = Math.abs(ne.lat - sw.lat);
+        const spanLng = Math.abs(ne.lng - sw.lng);
+        if (spanLat > MAX_FIT_SPAN_DEG || spanLng > MAX_FIT_SPAN_DEG) {
+          map.setView(center, DEFAULT_ZOOM);
+        } else {
+          map.fitBounds(bounds, {
+            padding: [FIT_PADDING_PX, FIT_PADDING_PX],
+            maxZoom: MAX_ZOOM - 1,
+          });
+        }
+      } catch {
+        map.setView(center, DEFAULT_ZOOM);
+      }
+    },
+  }), [center[0], center[1]]);
 
   useEffect(() => {
     if (typeof window === "undefined" || !containerRef.current) return;
@@ -273,10 +299,10 @@ export function MapView({
       zoneCirclesRef.current = [];
       zoneGeoJSONRef.current?.remove();
       zoneGeoJSONRef.current = null;
+      routePolylineRef.current?.remove();
+      routePolylineRef.current = null;
       plateBoundariesRef.current?.remove();
       plateBoundariesRef.current = null;
-      routePolylinesRef.current.forEach((p) => p.remove());
-      routePolylinesRef.current = [];
       stationMarkersRef.current.forEach((m) => m.remove());
       stationMarkersRef.current = [];
       safePointMarkersRef.current.forEach((m) => m.remove());
@@ -285,6 +311,8 @@ export function MapView({
       infraMarkersRef.current = [];
       zonePoisMarkersRef.current.forEach((m) => m.remove());
       zonePoisMarkersRef.current = [];
+      userLocationMarkerRef.current?.remove();
+      userLocationMarkerRef.current = null;
       if (mapRef.current) {
         mapRef.current.remove();
         mapRef.current = null;
@@ -302,55 +330,46 @@ export function MapView({
     }
   }, [mapReady, center[0], center[1], showPlan]);
 
-  // Plate boundaries: clip to local bbox (600km), only show when zoom >= 6
-  useEffect(() => {
+  // Plate boundaries: always visible. Clip radius scales with zoom (larger when zoomed out).
+  const updatePlateLayer = useCallback(() => {
     const L = leafletRef.current as typeof import("leaflet") | null;
     const map = mapRef.current;
     if (!L || !map || !mapReady || !plateDataReady || !plateGeoJSONRef.current) return;
-    plateBoundariesRef.current?.remove();
-    plateBoundariesRef.current = null;
     const zoom = map.getZoom();
-    if (zoom < 6) return;
-    const bbox = bboxAround(center[0], center[1], PLATE_CLIP_RADIUS_KM);
+    const radiusKm = zoom < 5 ? 8000 : zoom < 7 ? 2000 : PLATE_CLIP_RADIUS_KM;
+    const bbox = bboxAround(center[0], center[1], radiusKm);
     const raw = plateGeoJSONRef.current;
     if (!raw) return;
     const clipped = clipGeoJSONToBbox(raw, bbox);
     if (!clipped.features.length) return;
+    plateBoundariesRef.current?.remove();
+    plateBoundariesRef.current = null;
+    const weight = zoom < 5 ? 1.5 : 1;
+    const opacity = zoom < 5 ? 0.6 : 0.45;
     const layer = L.geoJSON(clipped as GeoJSON.FeatureCollection, {
-      style: () => ({ color: "#94a3b8", weight: 1, opacity: 0.45 }),
+      style: () => ({ color: "#64748b", weight, opacity }),
     });
     layer.addTo(map);
     plateBoundariesRef.current = layer;
   }, [mapReady, plateDataReady, center[0], center[1]]);
 
-  // When map zoom changes, show/hide plate layer (only at zoom >= 6)
   useEffect(() => {
-    const L = leafletRef.current as typeof import("leaflet") | null;
+    if (!mapReady || !plateDataReady) return;
+    updatePlateLayer();
+  }, [mapReady, plateDataReady, center[0], center[1], updatePlateLayer]);
+
+  // Refresh plate layer on zoom/pan so clip radius and style update
+  useEffect(() => {
     const map = mapRef.current;
-    if (!L || !map || !mapReady || !plateGeoJSONRef.current) return;
-    const handler = () => {
-      const zoom = map.getZoom();
-      const plateData = plateGeoJSONRef.current;
-      if (zoom >= 6 && !plateBoundariesRef.current && plateData) {
-        const bbox = bboxAround(center[0], center[1], PLATE_CLIP_RADIUS_KM);
-        const clipped = clipGeoJSONToBbox(plateData, bbox);
-        if (clipped.features.length) {
-          const layer = L.geoJSON(clipped as GeoJSON.FeatureCollection, {
-            style: () => ({ color: "#94a3b8", weight: 1, opacity: 0.45 }),
-          });
-          layer.addTo(map);
-          plateBoundariesRef.current = layer;
-        }
-      } else if (zoom < 6 && plateBoundariesRef.current) {
-        plateBoundariesRef.current.remove();
-        plateBoundariesRef.current = null;
-      }
-    };
+    if (!map || !mapReady || !plateDataReady) return;
+    const handler = () => updatePlateLayer();
     map.on("zoomend", handler);
+    map.on("moveend", handler);
     return () => {
       map.off("zoomend", handler);
+      map.off("moveend", handler);
     };
-  }, [mapReady, plateDataReady, center[0], center[1]]);
+  }, [mapReady, plateDataReady, updatePlateLayer]);
 
   useEffect(() => {
     const L = leafletRef.current as typeof import("leaflet") | null;
@@ -369,13 +388,39 @@ export function MapView({
     quakeMarkerRef.current = marker;
   }, [mapReady, center[0], center[1]]);
 
+  // User location marker ("Your location")
+  useEffect(() => {
+    const L = leafletRef.current as typeof import("leaflet") | null;
+    const map = mapRef.current;
+    if (!L || !map || !mapReady) return;
+    userLocationMarkerRef.current?.remove();
+    userLocationMarkerRef.current = null;
+    if (userLocation) {
+      const el = createUserLocationElement();
+      const marker = L.marker([userLocation.lat, userLocation.lng], {
+        icon: L.divIcon({
+          html: el.outerHTML,
+          className: "leaflet-user-location",
+          iconSize: [24, 24],
+          iconAnchor: [12, 12],
+        }),
+      }).addTo(map);
+      marker.bindTooltip("Your location", { direction: "top", permanent: false });
+      userLocationMarkerRef.current = marker;
+    }
+    return () => {
+      userLocationMarkerRef.current?.remove();
+      userLocationMarkerRef.current = null;
+    };
+  }, [mapReady, userLocation?.lat, userLocation?.lng]);
+
   const removePlanLayers = useCallback(() => {
     zoneCirclesRef.current.forEach((c) => c.remove());
     zoneCirclesRef.current = [];
     zoneGeoJSONRef.current?.remove();
     zoneGeoJSONRef.current = null;
-    routePolylinesRef.current.forEach((p) => p.remove());
-    routePolylinesRef.current = [];
+    routePolylineRef.current?.remove();
+    routePolylineRef.current = null;
     stationMarkersRef.current.forEach((m) => m.remove());
     stationMarkersRef.current = [];
     safePointMarkersRef.current.forEach((m) => m.remove());
@@ -448,8 +493,8 @@ export function MapView({
         icon: L.divIcon({
           html: el.outerHTML,
           className: "leaflet-infra-marker",
-        iconSize: [32, 32],
-        iconAnchor: [16, 32],
+          iconSize: [24, 24],
+          iconAnchor: [12, 24],
         }),
       }).addTo(map);
       const typeLabel = INFRA_TYPE_LABELS[node.type] ?? node.type;
@@ -468,8 +513,8 @@ export function MapView({
           icon: L.divIcon({
             html: el.outerHTML,
             className: "leaflet-zone-poi-marker",
-            iconSize: [28, 28],
-            iconAnchor: [14, 14],
+            iconSize: [24, 24],
+            iconAnchor: [12, 12],
           }),
         }).addTo(map);
         const typeLabel = ZONE_POI_TYPE_LABELS[poi.type] ?? poi.type;
@@ -482,19 +527,21 @@ export function MapView({
       });
     });
 
-    routes.forEach((route) => {
-      if (!route.waypoints.length) return;
-      const latLngs: [number, number][] = route.waypoints.map((w) => [
-        w.lat,
-        w.lng,
-      ]);
-      const polyline = L.polyline(latLngs, {
-        color: "rgba(55, 65, 81, 0.9)",
-        weight: 3,
-        opacity: 0.9,
-      }).addTo(map);
-      routePolylinesRef.current.push(polyline);
-    });
+    // Draw highlighted route polyline only
+    routePolylineRef.current?.remove();
+    routePolylineRef.current = null;
+    if (highlightedRouteId) {
+      const route = routes.find((r) => r.id === highlightedRouteId);
+      if (route?.waypoints?.length) {
+        const latLngs: [number, number][] = route.waypoints.map((w) => [w.lat, w.lng]);
+        const polyline = L.polyline(latLngs, {
+          color: "rgba(59, 130, 246, 0.9)",
+          weight: 4,
+          opacity: 0.9,
+        }).addTo(map);
+        routePolylineRef.current = polyline;
+      }
+    }
 
     stations.forEach((station) => {
       const el = createStationMarkerElement(station.type);
@@ -536,9 +583,6 @@ export function MapView({
         }
       });
     }
-    routes.forEach((r) => {
-      r.waypoints.forEach((w) => bounds.extend([w.lat, w.lng]));
-    });
     try {
       const ne = bounds.getNorthEast();
       const sw = bounds.getSouthWest();
@@ -567,6 +611,7 @@ export function MapView({
     zonePois,
     stations,
     routes,
+    highlightedRouteId,
     removePlanLayers,
   ]);
 
@@ -576,4 +621,4 @@ export function MapView({
       className="h-full w-full overflow-hidden rounded-2xl border border-border shadow-sm"
     />
   );
-}
+});

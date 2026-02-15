@@ -1,4 +1,4 @@
-import type { QuakeEvent, ResponsePlan } from "@/lib/types";
+import type { QuakeEvent, ResponsePlan, Route } from "@/lib/types";
 
 export type QuakeViewMode = "live" | "last5";
 
@@ -26,4 +26,7 @@ export interface QuakeSidebarProps {
   onToggleBriefing: () => void;
   onVerifyPlan: () => void;
   onSavePlan: () => void;
+  onRouteSelect?: (routeId: string, route: Route) => void;
+  onRouteZoom?: (route: Route) => void;
+  selectedRouteId?: string;
 }

@@ -6,29 +6,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { QuakeSidebarProps } from "@/components/QuakeSidebar.types";
 import { PlanPanel } from "@/components/PlanPanel";
-import type { RiskLevel } from "@/lib/types";
+import { PatriotAssistantPanel } from "@/components/PatriotAssistantPanel";
+import { ResourceAllocationPanel } from "@/components/ResourceAllocationPanel";
+import { LovedOnesNotifyPanel } from "@/components/LovedOnesNotifyPanel";
+import { SafeRoutesPanel } from "@/components/SafeRoutesPanel";
 import { motion, AnimatePresence } from "framer-motion";
 import { Loader2, FileText, PlayCircle, ShieldCheck, Save, List, Zap, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-function RiskBadge({ level }: { level: RiskLevel }) {
-  const classByLevel = {
-    high: "bg-red-500/10 text-red-700 border-red-200",
-    medium: "bg-amber-500/10 text-amber-700 border-amber-200",
-    low: "bg-emerald-500/10 text-emerald-700 border-emerald-200",
-  };
-  return (
-    <Badge
-      variant={level === "high" ? "destructive" : "outline"}
-      className={cn(
-        level === "medium" && classByLevel.medium,
-        level === "low" && classByLevel.low
-      )}
-    >
-      {level}
-    </Badge>
-  );
-}
 
 export function QuakeSidebar({
   quake,
@@ -54,6 +38,9 @@ export function QuakeSidebar({
   onToggleBriefing,
   onVerifyPlan,
   onSavePlan,
+  onRouteSelect,
+  onRouteZoom,
+  selectedRouteId,
 }: QuakeSidebarProps) {
   const formattedTime = quake.timestamp
     ? new Date(quake.timestamp).toLocaleString(undefined, {
@@ -61,22 +48,18 @@ export function QuakeSidebar({
         timeStyle: "short",
       })
     : "—";
-  const riskZones = plan?.riskZones ?? [];
-
   return (
     <aside className="flex h-full w-full flex-col gap-4 overflow-y-auto p-6">
-      <div className="flex items-center gap-4">
-        <div className="flex size-24 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-border/50">
-          <Image
-            src="/logo.png"
-            alt="GeoGuard"
-            width={96}
-            height={96}
-            className="size-full object-contain p-1"
-            priority
-          />
-        </div>
-        <div>
+      <div className="flex items-center gap-2">
+        <Image
+          src="/logo.png"
+          alt="GeoGuard"
+          width={102}
+          height={92}
+          className="shrink-0 object-contain"
+          priority
+        />
+        <div className="-ml-2">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-xl font-bold tracking-tight">
               <span className="text-blue-600">Geo</span>
@@ -88,7 +71,7 @@ export function QuakeSidebar({
               </Badge>
             )}
           </div>
-          <p className="mt-0.5 text-xs text-muted-foreground">Event details</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">Earthquake Response & Safety</p>
         </div>
       </div>
 
@@ -204,23 +187,6 @@ export function QuakeSidebar({
         </CardContent>
       </Card>
 
-      <Card className="rounded-2xl border border-border shadow-sm">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">Risk Summary</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-2 p-6 pt-0">
-          {riskZones.length > 0 ? (
-            riskZones.map((z) => (
-              <RiskBadge key={z.id} level={z.level} />
-            ))
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              Generate plan to see risk zones
-            </p>
-          )}
-        </CardContent>
-      </Card>
-
       {planError && (
         <Card className="rounded-2xl border-destructive/50 border border-border bg-destructive/5 shadow-sm">
           <CardContent className="p-4">
@@ -276,6 +242,21 @@ export function QuakeSidebar({
           <PlanPanel plan={plan} quake={quake} verified={planVerified} />
         )}
       </AnimatePresence>
+
+      {plan && (
+        <SafeRoutesPanel
+          plan={plan}
+          selectedRouteId={selectedRouteId}
+          onRouteSelect={onRouteSelect}
+          onRouteZoom={onRouteZoom}
+        />
+      )}
+
+      <div className="mt-4 space-y-4">
+        <PatriotAssistantPanel quake={quake} plan={plan} selectedQuake={quake} />
+        <ResourceAllocationPanel quake={quake} plan={plan} />
+        <LovedOnesNotifyPanel quake={quake} plan={plan} />
+      </div>
     </aside>
   );
 }

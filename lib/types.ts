@@ -41,6 +41,7 @@ export interface Route {
   waypoints: Coordinates[];
   durationMinutes?: number;
   distanceKm?: number;
+  category?: string; // hospital, shelter, fire_station, police
 }
 
 export interface PlanExplanation {
@@ -99,4 +100,6 @@ export interface ResponsePlan {
   safePoints?: SafePoint[] | null;
   infraNodes?: InfraNode[] | null;
   zonePois?: { high: ZonePoi[]; medium: ZonePoi[]; low: ZonePoi[] } | null;
+  userLocation?: { lat: number; lng: number } | null;
+  hotspotsSummary?: string | null;
 }

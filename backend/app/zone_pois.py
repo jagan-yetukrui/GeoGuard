@@ -9,6 +9,7 @@ from shapely.geometry import Point, shape
 from shapely.ops import unary_union
 
 from app.landmask import is_land
+from app.utils import dedupe_medical_same_location, dedupe_by_name_and_location
 
 # Types we use for zone POIs (normalized from Overpass + Google)
 ZONE_POI_TYPES = ("hospital", "shelter", "park", "open_area")
@@ -166,6 +167,9 @@ def compute_zone_pois(
                     continue
                 seen.add(key)
                 candidates.append({"name": n["name"], "type": norm, "lat": n["lat"], "lng": n["lng"]})
+
+    candidates = dedupe_medical_same_location(candidates, type_key="type")
+    candidates = dedupe_by_name_and_location(candidates)
 
     # Assign each candidate to at most one zone (highest risk) and apply type filter; only on-land POIs
     by_zone: dict[str, list[dict[str, Any]]] = {"high": [], "medium": [], "low": []}

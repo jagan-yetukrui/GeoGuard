@@ -157,6 +157,8 @@ def fetch_zone_pois_candidates(
                 continue
             seen.add(key_pt)
             merged.append(parsed)
+        from app.utils import dedupe_medical_same_location
+        merged = dedupe_medical_same_location(merged)
     except (httpx.HTTPError, ValueError, KeyError):
         pass
 
@@ -218,6 +220,48 @@ def fetch_infra_nodes(lat: float, lng: float) -> tuple[list[dict[str, Any]], boo
             continue
         seen.add(key_pt)
         nodes.append(parsed)
+    from app.utils import dedupe_medical_same_location
+    nodes = dedupe_medical_same_location(nodes)
+    nodes.sort(key=lambda n: (n["lat"], n["lng"]))
+    _cache[key] = nodes
+    _cache_time = now
+    return nodes, True
+
+
+def fetch_infra_in_bbox(
+    south: float, west: float, north: float, east: float
+) -> tuple[list[dict[str, Any]], bool]:
+    """
+    Fetch infrastructure nodes in the given bbox (south, west, north, east).
+    Returns (list of {name, type, lat, lng}, success).
+    """
+    global _cache, _cache_time
+    key = f"bbox:{south:.4f},{west:.4f},{north:.4f},{east:.4f}"
+    now = time.monotonic()
+    if key in _cache and (now - _cache_time) < CACHE_TTL_SECONDS:
+        return _cache[key], True
+    try:
+        query = _build_infra_query(south, west, north, east)
+        with httpx.Client(timeout=15.0) as client:
+            r = client.post(OVERPASS_URL, content=query)
+            r.raise_for_status()
+            data = r.json()
+    except (httpx.HTTPError, ValueError, KeyError):
+        return [], False
+    nodes: list[dict[str, Any]] = []
+    seen = set()
+    for el in data.get("elements", []):
+        osm_type = el.get("type", "node")
+        parsed = _parse_element(el, osm_type)
+        if not parsed:
+            continue
+        key_pt = (round(parsed["lat"], 5), round(parsed["lng"], 5))
+        if key_pt in seen:
+            continue
+        seen.add(key_pt)
+        nodes.append(parsed)
+    from app.utils import dedupe_medical_same_location
+    nodes = dedupe_medical_same_location(nodes)
     nodes.sort(key=lambda n: (n["lat"], n["lng"]))
     _cache[key] = nodes
     _cache_time = now
@@ -264,7 +308,8 @@ def fetch_building_points(lat: float, lng: float, half_km: float = 40.0) -> tupl
     key = f"buildings:{south:.4f},{west:.4f},{north:.4f},{east:.4f}"
     now = time.monotonic()
     if key in _cache and (now - _cache_time) < CACHE_TTL_SECONDS:
-        return _cache[key], True
+        cached = _cache[key]
+        return cached[0], cached[1]
     try:
         query = _build_building_query(south, west, north, east)
         with httpx.Client(timeout=15.0) as client:
@@ -302,7 +347,8 @@ def fetch_highway_points(lat: float, lng: float, half_km: float = 40.0) -> tuple
     key = f"highways:{south:.4f},{west:.4f},{north:.4f},{east:.4f}"
     now = time.monotonic()
     if key in _cache and (now - _cache_time) < CACHE_TTL_SECONDS:
-        return _cache[key], True
+        cached = _cache[key]
+        return cached[0], cached[1]
     try:
         query = _build_highway_query(south, west, north, east)
         with httpx.Client(timeout=15.0) as client:

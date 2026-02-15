@@ -1,0 +1,233 @@
+{
+    "global_messaging_rules": {
+    "principles": [
+    "Use clear, calm, and factual language.",
+    "Avoid panic-inducing or speculative statements.",
+    "Do not guarantee safety or outcomes.",
+    "Prioritize clarity over completeness in short channels."
+    ],
+    "mandatory_inclusions": [
+    "Include location and timestamp when available.",
+    "Include a link placeholder if available.",
+    "Always include: 'Call emergency services if in immediate danger.'"
+    ],
+    "data_handling": "If required inputs are missing, use the fallback template without inventing details.",
+    "source_alignment": [
+    "USGS live earthquake feed",
+    "GeoGuard risk zone model",
+    "OpenStreetMap infrastructure data",
+    "GeoGuard routing and logistics engine"
+    ]
+    },
+    "tone_presets": {
+    "calm_reassuring": "Steady, supportive, and composed. Emphasizes reassurance without minimizing risk.",
+    "urgent_clear": "Direct and concise. Focused on immediate actions without alarmist language.",
+    "command_operational": "Formal, authoritative, and task-oriented. Suitable for coordinated response."
+    },
+    "templates": [
+    {
+    "id": "im_safe_update",
+    "title": "I'm Safe Update",
+    "audience": "family",
+    "channel": "sms",
+    "max_length_chars": 280,
+    "priority": "P1",
+    "template_text": "Update from {user_name}: I am safe following the earthquake near {quake_place}. Current location: {user_location}. Time: {timestamp}. More info: {geo_guard_link}. Call emergency services if in immediate danger.",
+    "required_inputs": ["user_name", "user_location", "quake_place", "timestamp"],
+    "safety_notes": "Do not state others are safe unless confirmed.",
+    "fallback_template": "I am safe after the earthquake. Location and details may be limited. Time: {timestamp}. Call emergency services if in immediate danger."
+    },
+    {
+    "id": "stuck_in_red_zone",
+    "title": "Stuck in Red Zone",
+    "audience": "family",
+    "channel": "sms",
+    "max_length_chars": 300,
+    "priority": "P0",
+    "template_text": "URGENT from {user_name}: I am in the high-risk zone near the earthquake at {quake_place}. I may be stuck. Location: {user_location} (lat:{lat}, lng:{lng}). Time: {timestamp}. {geo_guard_link}. Call emergency services if in immediate danger.",
+    "required_inputs": ["user_name", "user_location", "lat", "lng", "quake_place", "timestamp"],
+    "safety_notes": "Encourage contacts to call emergency services if no response.",
+    "fallback_template": "URGENT: I am in the affected zone of the earthquake near {quake_place}. I may need help. Time: {timestamp}. Call emergency services if in immediate danger."
+    },
+    {
+    "id": "need_help_sos",
+    "title": "Need Help SOS",
+    "audience": "public",
+    "channel": "sms",
+    "max_length_chars": 300,
+    "priority": "P0",
+    "template_text": "SOS from {user_name}. I need assistance at {user_location} (lat:{lat}, lng:{lng}). Earthquake near {quake_place}. Time: {timestamp}. Details: {geo_guard_link}. Call emergency services if in immediate danger.",
+    "required_inputs": ["user_name", "user_location", "lat", "lng", "timestamp"],
+    "safety_notes": "Encourage direct emergency calls when possible.",
+    "fallback_template": "SOS: I need help due to the earthquake. Location unclear. Time: {timestamp}. Call emergency services if in immediate danger."
+    },
+    {
+    "id": "injured_need_medical",
+    "title": "Injured – Medical Needed",
+    "audience": "hospital",
+    "channel": "sms",
+    "max_length_chars": 320,
+    "priority": "P0",
+    "template_text": "Medical assistance needed. Injured person at {user_location}. Nearest hospital: {nearest_hospital}. Earthquake details: M{quake_mag} near {quake_place}. Time: {timestamp}. {geo_guard_link}. Call emergency services if in immediate danger.",
+    "required_inputs": ["user_location", "nearest_hospital", "quake_mag", "quake_place", "timestamp"],
+    "safety_notes": "Do not describe injuries beyond confirmed observations.",
+    "fallback_template": "Medical help needed due to earthquake. Location uncertain. Time: {timestamp}. Call emergency services if in immediate danger."
+    },
+    {
+    "id": "trapped_request_rescue",
+    "title": "Trapped – Rescue Needed",
+    "audience": "rescue_team",
+    "channel": "sms",
+    "max_length_chars": 320,
+    "priority": "P0",
+    "template_text": "Rescue needed: person trapped at {user_location} (lat:{lat}, lng:{lng}). Earthquake near {quake_place}. Time: {timestamp}. Access notes: {safe_route_summary}. {geo_guard_link}. Call emergency services if in immediate danger.",
+    "required_inputs": ["user_location", "lat", "lng", "timestamp"],
+    "safety_notes": "Avoid advising self-rescue actions.",
+    "fallback_template": "Rescue needed due to earthquake. Person may be trapped. Location unclear. Time: {timestamp}. Call emergency services if in immediate danger."
+    },
+    {
+    "id": "evacuating_to_shelter",
+    "title": "Evacuating to Shelter",
+    "audience": "family",
+    "channel": "whatsapp",
+    "max_length_chars": 350,
+    "priority": "P1",
+    "template_text": "Update: I am evacuating to {nearest_shelter} via a recommended route. Current location: {user_location}. Time: {timestamp}. Details: {geo_guard_link}. Call emergency services if in immediate danger.",
+    "required_inputs": ["nearest_shelter", "user_location", "timestamp"],
+    "safety_notes": "Do not state shelter availability unless confirmed.",
+    "fallback_template": "I am evacuating to a shelter following the earthquake. Time: {timestamp}. Call emergency services if in immediate danger."
+    },
+    {
+    "id": "missing_person_check_in",
+    "title": "Missing Person Check-In",
+    "audience": "family",
+    "channel": "sms",
+    "max_length_chars": 300,
+    "priority": "P1",
+    "template_text": "Checking in regarding {user_name}. Last known location: {user_location}. Earthquake near {quake_place}. Time: {timestamp}. Any information appreciated. {geo_guard_link}. Call emergency services if in immediate danger.",
+    "required_inputs": ["user_name", "user_location", "timestamp"],
+    "safety_notes": "Avoid assumptions about status.",
+    "fallback_template": "Seeking information about a missing person after the earthquake. Time: {timestamp}. Call emergency services if in immediate danger."
+    },
+    {
+    "id": "rescue_team_activation",
+    "title": "Rescue Team Activation",
+    "audience": "rescue_team",
+    "channel": "internal_ops",
+    "max_length_chars": 500,
+    "priority": "P0",
+    "template_text": "Activate rescue operations in {priority_zone}. Earthquake M{quake_mag} near {quake_place}. Time: {timestamp}. Known hazards: {shortages}. Staging info: {geo_guard_link}. Call emergency services if in immediate danger.",
+    "required_inputs": ["priority_zone", "quake_mag", "quake_place", "timestamp"],
+    "safety_notes": "Confirm assignments through command before deployment.",
+    "fallback_template": "Rescue activation requested due to earthquake. Zone and details pending. Time: {timestamp}. Call emergency services if in immediate danger."
+    },
+    {
+    "id": "volunteer_activation_low_risk",
+    "title": "Volunteer Activation (Low Risk)",
+    "audience": "volunteers",
+    "channel": "broadcast",
+    "max_length_chars": 450,
+    "priority": "P2",
+    "template_text": "Volunteers requested for low-risk support tasks in {priority_zone}. No specialized training required. Time: {timestamp}. Register via {geo_guard_link}. Call emergency services if in immediate danger.",
+    "required_inputs": ["priority_zone", "timestamp"],
+    "safety_notes": "Do not assign hazardous tasks.",
+    "fallback_template": "Volunteers needed for low-risk support following the earthquake. Time: {timestamp}. Call emergency services if in immediate danger."
+    },
+    {
+    "id": "hospital_capacity_alert",
+    "title": "Hospital Capacity Alert",
+    "audience": "hospital",
+    "channel": "internal_ops",
+    "max_length_chars": 450,
+    "priority": "P0",
+    "template_text": "Hospital capacity alert: {nearest_hospital} nearing limits. Earthquake M{quake_mag}. Time: {timestamp}. Resource status: {shortages}. Details: {geo_guard_link}. Call emergency services if in immediate danger.",
+    "required_inputs": ["nearest_hospital", "quake_mag", "timestamp"],
+    "safety_notes": "Coordinate through regional health command.",
+    "fallback_template": "Hospital capacity concerns following earthquake. Details pending. Time: {timestamp}. Call emergency services if in immediate danger."
+    },
+    {
+    "id": "police_perimeter_request",
+    "title": "Police Perimeter Request",
+    "audience": "police",
+    "channel": "internal_ops",
+    "max_length_chars": 450,
+    "priority": "P1",
+    "template_text": "Request police perimeter at {user_location} in {priority_zone} due to earthquake impact. Time: {timestamp}. Hazards noted. Details: {geo_guard_link}. Call emergency services if in immediate danger.",
+    "required_inputs": ["user_location", "priority_zone", "timestamp"],
+    "safety_notes": "Ensure coordination with incident command.",
+    "fallback_template": "Police perimeter requested due to earthquake hazards. Location pending. Time: {timestamp}. Call emergency services if in immediate danger."
+    },
+    {
+    "id": "fire_hazard_report",
+    "title": "Fire Hazard Report",
+    "audience": "fire",
+    "channel": "internal_ops",
+    "max_length_chars": 450,
+    "priority": "P0",
+    "template_text": "Fire hazard reported at {user_location} following earthquake. Type: {shortages}. Time: {timestamp}. Access notes: {safe_route_summary}. {geo_guard_link}. Call emergency services if in immediate danger.",
+    "required_inputs": ["user_location", "timestamp"],
+    "safety_notes": "Do not downplay potential escalation.",
+    "fallback_template": "Fire hazard suspected after earthquake. Location unclear. Time: {timestamp}. Call emergency services if in immediate danger."
+    },
+    {
+    "id": "supply_shortage_request",
+    "title": "Supply Shortage Request",
+    "audience": "government",
+    "channel": "internal_ops",
+    "max_length_chars": 500,
+    "priority": "P1",
+    "template_text": "Supply shortage reported in {priority_zone}. Items affected: {shortages}. Population impacted unknown. Time: {timestamp}. Logistics link: {geo_guard_link}. Call emergency services if in immediate danger.",
+    "required_inputs": ["priority_zone", "shortages", "timestamp"],
+    "safety_notes": "Avoid estimating quantities unless verified.",
+    "fallback_template": "Supply shortages reported following earthquake. Zone and details pending. Time: {timestamp}. Call emergency services if in immediate danger."
+    },
+    {
+    "id": "public_shelter_announcement",
+    "title": "Public Shelter Announcement",
+    "audience": "public",
+    "channel": "broadcast",
+    "max_length_chars": 500,
+    "priority": "P1",
+    "template_text": "Public notice: Shelters are available at {nearest_shelter} for those affected by the earthquake near {quake_place}. Time: {timestamp}. Route guidance: {safe_route_summary}. More info: {geo_guard_link}. Call emergency services if in immediate danger.",
+    "required_inputs": ["nearest_shelter", "quake_place", "timestamp"],
+    "safety_notes": "Do not guarantee shelter capacity.",
+    "fallback_template": "Public notice: Seek local shelters following the earthquake. Time: {timestamp}. Call emergency services if in immediate danger."
+    },
+    {
+    "id": "public_aftershock_warning",
+    "title": "Public Aftershock Warning",
+    "audience": "public",
+    "channel": "broadcast",
+    "max_length_chars": 450,
+    "priority": "P1",
+    "template_text": "Public advisory: Aftershocks may occur following the earthquake near {quake_place}. Stay alert and avoid damaged structures. Time: {timestamp}. Updates: {geo_guard_link}. Call emergency services if in immediate danger.",
+    "required_inputs": ["quake_place", "timestamp"],
+    "safety_notes": "Do not predict timing or magnitude.",
+    "fallback_template": "Public advisory: Remain alert for aftershocks following the earthquake. Time: {timestamp}. Call emergency services if in immediate danger."
+    },
+    {
+    "id": "public_do_not_travel_notice",
+    "title": "Do Not Travel Notice",
+    "audience": "public",
+    "channel": "broadcast",
+    "max_length_chars": 450,
+    "priority": "P1",
+    "template_text": "Public notice: Avoid non-essential travel in {priority_zone} due to earthquake impacts. Time: {timestamp}. Route updates: {geo_guard_link}. Call emergency services if in immediate danger.",
+    "required_inputs": ["priority_zone", "timestamp"],
+    "safety_notes": "Specify zone clearly to avoid confusion.",
+    "fallback_template": "Public notice: Avoid non-essential travel following the earthquake. Time: {timestamp}. Call emergency services if in immediate danger."
+    },
+    {
+    "id": "public_water_food_distribution",
+    "title": "Water and Food Distribution",
+    "audience": "public",
+    "channel": "broadcast",
+    "max_length_chars": 500,
+    "priority": "P2",
+    "template_text": "Public update: Water and food distribution available at {user_location}. Time: {timestamp}. Supplies may be limited. Details: {geo_guard_link}. Call emergency services if in immediate danger.",
+    "required_inputs": ["user_location", "timestamp"],
+    "safety_notes": "Avoid stating quantities or duration.",
+    "fallback_template": "Public update: Water and food distribution points are being established following the earthquake. Time: {timestamp}. Call emergency services if in immediate danger."
+    }
+    ]
+    }

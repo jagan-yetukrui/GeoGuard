@@ -1,0 +1,217 @@
+{
+    "policy_version": "1.0.0",
+    "global_principles": [
+    "Preserve life as the highest priority.",
+    "Allocate resources proportionally to risk, population exposure, and vulnerability.",
+    "Avoid overloading any single infrastructure node.",
+    "Prefer scalable, mobile, and reversible deployments under uncertainty.",
+    "All outputs are estimates and must include uncertainty indicators."
+    ],
+    "inputs_contract": {
+    "zoneType": {
+    "type": "string",
+    "allowed": ["red", "orange", "green"],
+    "required": true
+    },
+    "population_estimated": {
+    "type": "number",
+    "min": 0,
+    "required": true
+    },
+    "population_confidence": {
+    "type": "string",
+    "allowed": ["low", "medium", "high"],
+    "required": true
+    },
+    "infra_counts": {
+    "type": "object",
+    "required": true,
+    "properties": {
+    "hospitals": { "type": "number", "min": 0 },
+    "shelters": { "type": "number", "min": 0 },
+    "police": { "type": "number", "min": 0 },
+    "fire": { "type": "number", "min": 0 }
+    }
+    },
+    "hospital_beds_estimated": {
+    "type": "number",
+    "min": 0,
+    "required": true
+    },
+    "shelter_capacity_estimated": {
+    "type": "number",
+    "min": 0,
+    "required": true
+    },
+    "routes_available": {
+    "type": "number",
+    "min": 0,
+    "required": true
+    },
+    "damage_score": {
+    "type": "number",
+    "min": 0,
+    "max": 1,
+    "required": true
+    },
+    "hotspot_score": {
+    "type": "number",
+    "min": 0,
+    "max": 1,
+    "required": true
+    },
+    "time_since_event_minutes": {
+    "type": "number",
+    "min": 0,
+    "required": true
+    }
+    },
+    "allocation_config": {
+    "water_liters_per_person_per_day": 3,
+    "calories_per_person_per_day": 2100,
+    "medical_kits_per_people": 50,
+    "blankets_per_people": 2,
+    "shelter_space_per_person": 1,
+    "mobile_chargers_per_people": 100,
+    "radios_per_people": 250,
+    "rescue_teams_per_people": 5000,
+    "ambulances_per_people": 20000
+    },
+    "zone_multipliers": {
+    "red": 1.5,
+    "orange": 1.2,
+    "green": 0.8
+    },
+    "vulnerability_adjustments": {
+    "inputs": [
+    "elderly_percent",
+    "children_percent",
+    "disability_percent",
+    "poverty_index",
+    "building_vulnerability_proxy"
+    ],
+    "formula": "vulnerability_score = (elderly_percent0.25 + children_percent0.2 + disability_percent0.25 + poverty_index0.15 + building_vulnerability_proxy*0.15)",
+    "multipliers": {
+    "low": 0.9,
+    "medium": 1.0,
+    "high": 1.2
+    }
+    },
+    "shortage_rules": {
+    "hospital_overflow_threshold": 0.85,
+    "shelter_overflow_threshold": 0.9,
+    "actions_on_hospital_overflow": [
+    "trigger_mobile_medical_units",
+    "activate_triage_protocols",
+    "redistribute_patients_to_adjacent_zones"
+    ],
+    "actions_on_shelter_overflow": [
+    "open_temporary_camps",
+    "redistribute_population",
+    "request_additional_shelter_resources"
+    ]
+    },
+    "infrastructure_utilization_rules": {
+    "hospitals": {
+    "max_utilization_percent": 85,
+    "open_additional_when_exceeded": true
+    },
+    "shelters": {
+    "max_utilization_percent": 90,
+    "convert_open_areas_to_camps_when_exceeded": true
+    },
+    "police": {
+    "priority_functions": ["traffic_control", "perimeter_security"]
+    },
+    "fire": {
+    "priority_functions": ["fire_suppression", "hazard_mitigation"]
+    }
+    },
+    "deployment_prioritization_rules": {
+    "0_30_minutes": ["rescue", "medical", "communications"],
+    "30_120_minutes": ["rescue", "medical", "traffic_control", "fire_suppression"],
+    "2_12_hours": ["food_water", "shelter", "medical", "communications"],
+    "12_48_hours": ["food_water", "shelter", "logistics", "public_information"]
+    },
+    "output_contract": {
+    "resources_required": "object",
+    "resources_available_proxy": "object",
+    "shortages": "object",
+    "recommended_actions": "string[]",
+    "deployment_priority": "string[]",
+    "confidence": "low|medium|high",
+    "uncertainty_notes": "string"
+    },
+    "example_outputs": [
+    {
+    "scenario": "red_zone_urban_high_density",
+    "resources_required": {
+    "water_liters_per_day": 450000,
+    "medical_kits": 2500,
+    "shelter_spaces": 150000
+    },
+    "resources_available_proxy": {
+    "hospital_beds": "unknown",
+    "shelter_capacity": "insufficient"
+    },
+    "shortages": {
+    "shelter": true,
+    "medical": true
+    },
+    "recommended_actions": [
+    "deploy_mobile_medical_units",
+    "open_temporary_shelter_camps",
+    "prioritize_rescue_operations"
+    ],
+    "deployment_priority": ["rescue", "medical", "communications"],
+    "confidence": "medium",
+    "uncertainty_notes": "Population density high; infrastructure damage extent uncertain."
+    },
+    {
+    "scenario": "orange_zone_suburban_medium_density",
+    "resources_required": {
+    "water_liters_per_day": 180000,
+    "medical_kits": 1200,
+    "shelter_spaces": 60000
+    },
+    "resources_available_proxy": {
+    "hospital_beds": "limited",
+    "shelter_capacity": "moderate"
+    },
+    "shortages": {
+    "shelter": false,
+    "medical": true
+    },
+    "recommended_actions": [
+    "augment_hospital_capacity",
+    "prepare_additional_shelters"
+    ],
+    "deployment_priority": ["medical", "food_water", "traffic_control"],
+    "confidence": "medium",
+    "uncertainty_notes": "Moderate damage; population estimates moderately reliable."
+    },
+    {
+    "scenario": "green_zone_rural_low_density",
+    "resources_required": {
+    "water_liters_per_day": 30000,
+    "medical_kits": 200,
+    "shelter_spaces": 10000
+    },
+    "resources_available_proxy": {
+    "hospital_beds": "adequate",
+    "shelter_capacity": "adequate"
+    },
+    "shortages": {
+    "shelter": false,
+    "medical": false
+    },
+    "recommended_actions": [
+    "monitor_conditions",
+    "support_adjacent_zones_if_requested"
+    ],
+    "deployment_priority": ["communications", "monitoring"],
+    "confidence": "high",
+    "uncertainty_notes": "Low density and low damage indicators."
+    }
+    ]
+    }

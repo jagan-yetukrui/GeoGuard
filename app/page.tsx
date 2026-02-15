@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { MapView } from "@/components/MapView";
+import type { MapViewHandle } from "@/components/MapView";
 import { QuakeSidebar } from "@/components/QuakeSidebar";
 import { DisasterChat } from "@/components/DisasterChat";
 import { VoiceAgentBubble } from "@/components/VoiceAgentBubble";
@@ -28,6 +29,8 @@ export default function Home() {
   const [planVerified, setPlanVerified] = useState(false);
   const [planSaved, setPlanSaved] = useState(false);
   const [voiceAssistantOpen, setVoiceAssistantOpen] = useState(false);
+  const [highlightedRouteId, setHighlightedRouteId] = useState<string>();
+  const mapRef = useRef<MapViewHandle>(null);
 
   const loadQuakes = useCallback(async () => {
     setQuakeLoading(true);
@@ -136,8 +139,9 @@ export default function Home() {
 
   return (
     <main className="flex h-full min-h-screen w-full flex-col lg:flex-row">
-      <div className="h-[40vh] w-full shrink-0 lg:h-full lg:w-[70%] lg:min-w-0 lg:p-4">
+      <div className="h-[40vh] w-full shrink-0 lg:h-full lg:w-[70%] lg:min-w-0">
         <MapView
+          ref={mapRef}
           quake={selectedQuake}
           zones={plan?.riskZones ?? []}
           stations={plan?.stations ?? []}
@@ -147,6 +151,8 @@ export default function Home() {
           safePoints={plan?.safePoints}
           infraNodes={plan?.infraNodes}
           zonePois={plan?.zonePois}
+          highlightedRouteId={highlightedRouteId}
+          userLocation={plan?.userLocation}
         />
       </div>
       <div className="w-full shrink-0 border-t border-border lg:h-full lg:w-[30%] lg:min-w-[320px] lg:border-l lg:border-t-0">
@@ -174,6 +180,9 @@ export default function Home() {
           onToggleBriefing={onToggleBriefing}
           onVerifyPlan={onVerifyPlan}
           onSavePlan={onSavePlan}
+          onRouteSelect={(routeId) => setHighlightedRouteId(routeId)}
+          onRouteZoom={(route) => mapRef.current?.fitToRoute(route)}
+          selectedRouteId={highlightedRouteId}
         />
       </div>
       <VoiceAgentBubble

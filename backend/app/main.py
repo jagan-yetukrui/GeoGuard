@@ -3,6 +3,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.communications_routes import router as communications_router
+from app.patriot_routes import router as patriot_router
+from app.resource_routes import router as resource_router
 from app.routes import router
 from app.settings import settings
 
@@ -44,3 +47,6 @@ def health():
 
 
 app.include_router(router)
+app.include_router(patriot_router, prefix="/api")
+app.include_router(resource_router, prefix="/api")
+app.include_router(communications_router, prefix="/api")

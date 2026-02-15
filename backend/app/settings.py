@@ -50,6 +50,14 @@ class Settings(BaseSettings):
     elevenlabs_api_key: str | None = None
     elevenlabs_voice_id: str = "21m00Tcm4TlvDq8ikWAM"  # Rachel; override via ELEVENLABS_VOICE_ID
 
+    # Hotspots overlay debug (include cells/polygons in plan response)
+    hotspots_debug: bool = False
+
+    # Patriot AI (emergency assistant brain)
+    patriot_ai_api_key: str | None = None
+    patriot_ai_base_url: str = "https://api.openai.com/v1"  # OpenAI-compatible
+    patriot_ai_model: str = "gpt-4o-mini"
+
     # Snowflake (optional; set in .env to avoid "extra forbidden" when .env has SNOWFLAKE_*)
     snowflake_user: str | None = None
     snowflake_password: str | None = None
@@ -71,6 +79,8 @@ if not settings.gemini_api_key and os.environ.get("GEMINI_API_KEY"):
     settings.gemini_api_key = os.environ["GEMINI_API_KEY"]
 if not settings.elevenlabs_api_key and os.environ.get("ELEVENLABS_API_KEY"):
     settings.elevenlabs_api_key = os.environ["ELEVENLABS_API_KEY"]
+if not settings.patriot_ai_api_key and os.environ.get("PATRIOT_AI_API_KEY"):
+    settings.patriot_ai_api_key = os.environ["PATRIOT_AI_API_KEY"]
 
 
 def get_elevenlabs_api_key() -> str | None:
@@ -94,6 +104,14 @@ def get_elevenlabs_api_key() -> str | None:
         except Exception:
             pass
     return None
+
+
+def get_patriot_ai_api_key() -> str | None:
+    """Return Patriot AI API key from settings or env."""
+    key = settings.patriot_ai_api_key
+    if key:
+        return key
+    return os.environ.get("PATRIOT_AI_API_KEY")
 
 
 def get_gemini_api_key() -> str | None:

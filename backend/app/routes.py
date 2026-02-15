@@ -6,6 +6,11 @@ from app.plates import (
     plate_motion_proxy_mm_yr as get_plate_motion_proxy,
 )
 from app.recommend import generate_routes, generate_stations
+from app.safe_routes import (
+    find_nearest_shelter,
+    generate_routes_by_category_with_roads,
+    get_demo_user_location,
+)
 from app.schemas import (
     AnalyzeBody,
     AnalyzeResponse,
@@ -190,6 +195,9 @@ def plan(body: PlanBody):
                     infra_nodes_list.append({"name": p["name"], "type": p["type"], "lat": p["lat"], "lng": p["lng"]})
         infra_nodes_list.sort(key=lambda n: (n["lat"], n["lng"]))
     from app.landmask import filter_land_points
+    from app.utils import dedupe_medical_same_location, dedupe_by_name_and_location
+    infra_nodes_list = dedupe_medical_same_location(infra_nodes_list)
+    infra_nodes_list = dedupe_by_name_and_location(infra_nodes_list)
     infra_nodes_list = filter_land_points(infra_nodes_list, lat_key="lat", lng_key="lng")
     infra_count = len(infra_nodes_list)
     density_proxy = get_density_proxy(lat, lng, infra_nodes_list)
@@ -224,8 +232,13 @@ def plan(body: PlanBody):
     safe_points_out: list[SafePointOut] = []
 
     # Filter infra and places to within green zone (low_km) only
-    from app.utils import haversine_km
+    from app.utils import add_nearest_fallback_infra, haversine_km
+    infra_nodes_all = infra_nodes_list
     infra_nodes_list = [n for n in infra_nodes_list if haversine_km(lat, lng, n["lat"], n["lng"]) <= low_km]
+    # When a category (hospital, fire_station, police, shelter) has none in zone, add nearest 2 from outside
+    infra_nodes_list = add_nearest_fallback_infra(
+        infra_nodes_list, infra_nodes_all, lat, lng, low_km, per_category=2
+    )
     places_list = [p for p in places_list if haversine_km(lat, lng, p["lat"], p["lng"]) <= low_km]
 
     zone_pois_dict: dict[str, list[ZonePoiOut]] | None = None
@@ -251,6 +264,47 @@ def plan(body: PlanBody):
         zones_geojson=zones_geojson, infra_nodes=infra_nodes_list,
     )
     route_dicts = generate_routes(lat, lng, high_km, stations)
+
+    # Compute hotspots before route generation (for safest-destination scoring)
+    hotspots_cells_list: list = []
+    hotspots_summary_str: str | None = None
+    hotspots_polygons_list: list = []
+    hotspots_debug = False
+    try:
+        from app.hotspots import compute_hotspot_grid, hotspot_cells_to_polygons
+        from app.settings import settings
+        hotspots_cells_list, hotspots_summary_str = compute_hotspot_grid(
+            lat, lng, high_km, med_km, infra_nodes_list
+        )
+        hotspots_debug = getattr(settings, "hotspots_debug", False)
+        if hotspots_cells_list and hotspots_debug:
+            hotspots_polygons_list = hotspot_cells_to_polygons(hotspots_cells_list)
+    except Exception:
+        pass
+
+    # Always use demo location; generate category routes (hospital, shelter, fire_station, police)
+    demo_user_lat, demo_user_lng = get_demo_user_location(lat, lng, high_km)
+    user_location_out = {"lat": demo_user_lat, "lng": demo_user_lng}
+    category_routes = generate_routes_by_category_with_roads(
+        demo_user_lat, demo_user_lng, infra_nodes_list, hotspots_cells_list
+    )
+    for r in category_routes:
+        r["reason"] = "[DEMO LOCATION] " + r["reason"]
+        route_dicts.append(r)
+    demo_nearest_shelter = find_nearest_shelter(
+        demo_user_lat, demo_user_lng, stations
+    )
+    safe_points_out.append(
+        SafePointOut(
+            lat=demo_user_lat,
+            lng=demo_user_lng,
+            reason=(
+                f"Simulated user location in red zone, {demo_nearest_shelter['distance_km']}km from {demo_nearest_shelter['name']}"
+                if demo_nearest_shelter
+                else "Simulated user location in red zone"
+            ),
+        )
+    )
 
     explanation_notes = grid_explanation.get("notes") or ""
     if len(stations) == 0:
@@ -294,10 +348,30 @@ def plan(body: PlanBody):
     from datetime import datetime, timezone
     generated_at = datetime.now(timezone.utc).isoformat()
 
+    # Exclude from infra_nodes any that appear in zone_pois (avoid duplicate markers on map)
+    infra_for_response = infra_nodes_list
+    if zone_pois_dict:
+        zone_poi_coords = set()
+        for level in ("high", "medium", "low"):
+            for p in zone_pois_dict.get(level, []):
+                zone_poi_coords.add((round(p.lat, 5), round(p.lng, 5)))
+        infra_for_response = [
+            n for n in infra_nodes_list
+            if (round(n["lat"], 5), round(n["lng"], 5)) not in zone_poi_coords
+        ]
+
     return PlanResponse(
         zones=[ZoneOut(level=z["level"], radius_km=z["radius_km"], center=z["center"]) for z in zones],
         help_stations=[HelpStationOut(**s) for s in stations],
-        routes=[RouteOut(name=r["name"], points=r["points"], reason=r["reason"]) for r in route_dicts],
+        routes=[
+            RouteOut(
+                name=r["name"],
+                points=r["points"],
+                reason=r["reason"],
+                category=r.get("category"),
+            )
+            for r in route_dicts
+        ],
         priority_actions=priority_actions,
         summary=summary,
         generated_at=generated_at,
@@ -309,8 +383,12 @@ def plan(body: PlanBody):
         plate_motion_proxy_mm_yr=motion_proxy,
         zones_geojson=zones_geojson,
         safe_points=safe_points_out,
-        infra_nodes=[InfraNodeOut(name=n["name"], type=n["type"], lat=n["lat"], lng=n["lng"]) for n in infra_nodes_list],
+        infra_nodes=[InfraNodeOut(name=n["name"], type=n["type"], lat=n["lat"], lng=n["lng"]) for n in infra_for_response],
         zone_pois=zone_pois_dict,
+        user_location=user_location_out,
+        hotspots_summary=hotspots_summary_str,
+        hotspots_cells=hotspots_cells_list if hotspots_debug else None,
+        hotspots_polygons=hotspots_polygons_list if hotspots_debug else None,
     )
 
 

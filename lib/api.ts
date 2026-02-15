@@ -124,6 +124,7 @@ function mapRoute(r: RouteOut, index: number): Route {
     from: "Epicenter",
     to: waypoints.length > 1 ? "Station" : "Waypoint",
     waypoints,
+    category: r.category ?? undefined,
   };
 }
 
@@ -137,6 +138,7 @@ interface RouteOut {
   name: string;
   points: number[][];
   reason: string;
+  category?: string | null;
 }
 
 interface SafePointOut {
@@ -176,6 +178,8 @@ interface PlanResponse {
   safe_points?: SafePointOut[] | null;
   infra_nodes?: InfraNodeOut[] | null;
   zone_pois?: { high: ZonePoiOut[]; medium: ZonePoiOut[]; low: ZonePoiOut[] } | null;
+  user_location?: { lat: number; lng: number } | null;
+  hotspots_summary?: string | null;
 }
 
 export async function getLiveQuake(): Promise<QuakeEvent> {
@@ -218,6 +222,8 @@ export async function generatePlan(quakeId: string): Promise<ResponsePlan> {
           low: data.zone_pois.low.map((p) => ({ name: p.name, type: p.type, lat: p.lat, lng: p.lng, zoneLevel: p.zone_level })),
         }
       : undefined,
+    userLocation: data.user_location ?? undefined,
+    hotspotsSummary: data.hotspots_summary ?? undefined,
   };
 }
 
@@ -338,5 +344,92 @@ export async function getVoiceIntro(params: {
   return fetchApi<VoiceIntroResponse>("/api/assistant/voice-intro", {
     method: "POST",
     body: JSON.stringify(params),
+  });
+}
+
+/** Patriot AI prompt IDs from Emergency_response_prompt.json */
+export type PatriotPromptId = "situation_summary" | "responder_role_assignment";
+
+export interface PatriotAssistResponse {
+  title: string;
+  summary: string;
+  steps: string[];
+  warnings: string[];
+  do_now: string[];
+  confidence: "low" | "medium" | "high";
+  sources_used: string[];
+  scripts?: Record<string, string>;
+  checklists?: Array<{ title: string; items: string[] }>;
+}
+
+export async function patriotAssist(
+  promptId: PatriotPromptId | string,
+  context: Record<string, unknown>
+): Promise<PatriotAssistResponse> {
+  return fetchApi<PatriotAssistResponse>("/api/patriot/assist", {
+    method: "POST",
+    body: JSON.stringify({ prompt_id: promptId, context }),
+  });
+}
+
+export interface CommTemplate {
+  id: string;
+  title: string;
+  channel: string;
+  audience: string;
+  priority: string;
+}
+
+export async function getCommTemplates(): Promise<CommTemplate[]> {
+  return fetchApi<CommTemplate[]>("/api/communications/templates");
+}
+
+export interface CommGenerateResponse {
+  template_id: string;
+  message: string;
+  channel: string;
+  audience: string;
+  priority: string;
+}
+
+export async function generateCommMessage(
+  templateId: string,
+  context: Record<string, string>
+): Promise<CommGenerateResponse> {
+  return fetchApi<CommGenerateResponse>("/api/communications/generate", {
+    method: "POST",
+    body: JSON.stringify({ template_id: templateId, context }),
+  });
+}
+
+export interface ResourceCalculateResponse {
+  resources_required: Record<string, number>;
+  main_needs?: string[];
+  secondary_needs?: string[];
+  resources_available_proxy: Record<string, string | number>;
+  shortages: Record<string, boolean>;
+  recommended_actions: string[];
+  deployment_priority: string[];
+  confidence: "low" | "medium" | "high";
+  uncertainty_notes: string;
+  population_estimated?: number;
+  area_km2?: number;
+  population_density_people_per_km2?: number;
+}
+
+export async function calculateResources(params: {
+  zoneType: string;
+  geometry: { bbox?: number[]; coordinates?: unknown; type?: string };
+  time_since_event_minutes?: number;
+  vulnerability?: Record<string, number>;
+}): Promise<ResourceCalculateResponse> {
+  return fetchApi<ResourceCalculateResponse>("/api/resources/calculate", {
+    method: "POST",
+    body: JSON.stringify({
+      zoneType: params.zoneType,
+      geometry: params.geometry,
+      time_since_event_minutes: params.time_since_event_minutes ?? 0,
+      vulnerability: params.vulnerability,
+    }),
   });
 }

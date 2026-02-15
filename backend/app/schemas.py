@@ -82,6 +82,7 @@ class RouteOut(BaseModel):
     name: str
     points: list[list[float]]  # [[lng, lat], ...]
     reason: str
+    category: str | None = None  # hospital, shelter, fire_station, police
 
 
 class PlanConstraints(BaseModel):
@@ -185,3 +186,8 @@ class PlanResponse(BaseModel):
     safe_points: list[SafePointOut] | None = None
     infra_nodes: list[InfraNodeOut] | None = None
     zone_pois: dict[str, list[ZonePoiOut]] | None = None  # keys: high, medium, low
+    user_location: dict[str, float] | None = None  # {lat, lng} when user set their location
+    # Collapse hotspot overlay (Patriot AI explains; optional cells/polygons behind debug)
+    hotspots_summary: str | None = None
+    hotspots_cells: list[dict[str, Any]] | None = None
+    hotspots_polygons: list[dict[str, Any]] | None = None
