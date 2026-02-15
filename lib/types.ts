@@ -41,6 +41,7 @@ export interface Route {
   waypoints: Coordinates[];
   durationMinutes?: number;
   distanceKm?: number;
+  reason?: string;
 }
 
 export interface PlanExplanation {

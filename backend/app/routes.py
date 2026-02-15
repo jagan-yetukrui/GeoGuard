@@ -6,6 +6,11 @@ from app.plates import (
     plate_motion_proxy_mm_yr as get_plate_motion_proxy,
 )
 from app.recommend import generate_routes, generate_stations
+from app.safe_routes import (
+    get_demo_user_location,
+    generate_escape_routes,
+    find_nearest_shelter,
+)
 from app.schemas import (
     AnalyzeBody,
     AnalyzeResponse,
@@ -251,6 +256,31 @@ def plan(body: PlanBody):
         zones_geojson=zones_geojson, infra_nodes=infra_nodes_list,
     )
     route_dicts = generate_routes(lat, lng, high_km, stations)
+    
+    # Generate safe escape routes from demo location in red zone
+    demo_user_lat, demo_user_lng = get_demo_user_location(lat, lng, high_km)
+    escape_routes = generate_escape_routes(
+        demo_user_lat, demo_user_lng,
+        lat, lng, high_km,
+        stations
+    )
+    
+    # Add escape routes to the main route list with a demo marker
+    for escape_route in escape_routes:
+        escape_route["reason"] = "[DEMO LOCATION] " + escape_route["reason"]
+        route_dicts.append(escape_route)
+    
+    # Add demo user location as a safe point
+    demo_nearest_shelter = find_nearest_shelter(demo_user_lat, demo_user_lng, stations)
+    if demo_nearest_shelter:
+        safe_points_out.append(
+            SafePointOut(
+                lat=demo_user_lat,
+                lng=demo_user_lng,
+                reason=f"Simulated user location in red zone, {demo_nearest_shelter['distance_km']}km from {demo_nearest_shelter['name']}"
+            )
+        )
+
 
     explanation_notes = grid_explanation.get("notes") or ""
     if len(stations) == 0:

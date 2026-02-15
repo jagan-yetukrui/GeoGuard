@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { QuakeSidebarProps } from "@/components/QuakeSidebar.types";
 import { PlanPanel } from "@/components/PlanPanel";
+import { SafeRoutesPanel } from "@/components/SafeRoutesPanel";
 import type { RiskLevel } from "@/lib/types";
 import { motion, AnimatePresence } from "framer-motion";
 import { Loader2, FileText, PlayCircle, ShieldCheck, Save, List, Zap, RefreshCw } from "lucide-react";
@@ -54,6 +55,8 @@ export function QuakeSidebar({
   onToggleBriefing,
   onVerifyPlan,
   onSavePlan,
+  onRouteSelect,
+  selectedRouteId,
 }: QuakeSidebarProps) {
   const formattedTime = quake.timestamp
     ? new Date(quake.timestamp).toLocaleString(undefined, {
@@ -261,7 +264,7 @@ export function QuakeSidebar({
 
       <AnimatePresence mode="wait">
         {isGenerating && !plan && (
-          <Card className="rounded-2xl border border-border shadow-sm">
+          <Card key="loading" className="rounded-2xl border border-border shadow-sm">
             <CardContent className="p-6">
               <div className="animate-pulse space-y-3">
                 <div className="h-4 w-3/4 rounded bg-muted" />
@@ -273,7 +276,16 @@ export function QuakeSidebar({
           </Card>
         )}
         {planGenerated && plan && !isGenerating && (
-          <PlanPanel plan={plan} quake={quake} verified={planVerified} />
+          <div key="plan">
+            {onRouteSelect && (
+              <SafeRoutesPanel 
+                routes={plan.routes}
+                onRouteSelect={onRouteSelect}
+                selectedRouteId={selectedRouteId}
+              />
+            )}
+            <PlanPanel plan={plan} quake={quake} verified={planVerified} />
+          </div>
         )}
       </AnimatePresence>
     </aside>

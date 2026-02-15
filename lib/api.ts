@@ -124,6 +124,7 @@ function mapRoute(r: RouteOut, index: number): Route {
     from: "Epicenter",
     to: waypoints.length > 1 ? "Station" : "Waypoint",
     waypoints,
+    reason: r.reason,
   };
 }
 

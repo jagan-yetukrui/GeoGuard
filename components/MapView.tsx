@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useCallback, useState } from "react";
+import { useEffect, useRef, useCallback, useState, forwardRef, useImperativeHandle } from "react";
 import type L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type {
@@ -30,6 +30,11 @@ export type MapViewProps = {
   safePoints?: SafePoint[] | null;
   infraNodes?: InfraNode[] | null;
   zonePois?: { high: ZonePoi[]; medium: ZonePoi[]; low: ZonePoi[] } | null;
+  highlightedRouteId?: string;
+};
+
+export interface MapViewHandle {
+  fitToRoute: (route: Route) => void;
 };
 
 const ZONE_COLORS: Record<
@@ -174,17 +179,22 @@ function createInfraMarkerElement(type: string): HTMLDivElement {
   return el;
 }
 
-export function MapView({
-  quake,
-  zones,
-  stations,
-  routes,
-  showPlan,
-  zonesGeoJSON,
-  safePoints,
-  infraNodes,
-  zonePois,
-}: MapViewProps) {
+export const MapView = forwardRef<MapViewHandle, MapViewProps>(
+  (
+    {
+      quake,
+      zones,
+      stations,
+      routes,
+      showPlan,
+      zonesGeoJSON,
+      safePoints,
+      infraNodes,
+      zonePois,
+      highlightedRouteId,
+    },
+    ref
+  ) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const leafletRef = useRef<unknown>(null);
@@ -214,6 +224,20 @@ export function MapView({
   const MIN_ZOOM = MAX_ZOOM - 13;
   /** Max lat or lng span for fitBounds; avoid fitting to near-global extent. */
   const MAX_FIT_SPAN_DEG = 45;
+
+  // Expose fitToRoute method via ref
+  useImperativeHandle(ref, () => ({
+    fitToRoute: (route: Route) => {
+      if (!mapRef.current || !route.waypoints.length) return;
+      const bounds = L.latLngBounds(
+        route.waypoints.map((w) => [w.lat, w.lng] as [number, number])
+      );
+      mapRef.current.fitBounds(bounds, {
+        padding: [FIT_PADDING_PX, FIT_PADDING_PX],
+        maxZoom: MAX_ZOOM - 1,
+      });
+    },
+  }), []);
 
   useEffect(() => {
     if (typeof window === "undefined" || !containerRef.current) return;
@@ -488,10 +512,11 @@ export function MapView({
         w.lat,
         w.lng,
       ]);
+      const isHighlighted = highlightedRouteId && route.id === highlightedRouteId;
       const polyline = L.polyline(latLngs, {
-        color: "rgba(55, 65, 81, 0.9)",
-        weight: 3,
-        opacity: 0.9,
+        color: isHighlighted ? "rgb(16, 185, 129)" : "rgba(55, 65, 81, 0.9)",
+        weight: isHighlighted ? 5 : 3,
+        opacity: isHighlighted ? 1 : 0.9,
       }).addTo(map);
       routePolylinesRef.current.push(polyline);
     });
@@ -566,8 +591,7 @@ export function MapView({
     infraNodes,
     zonePois,
     stations,
-    routes,
-    removePlanLayers,
+    routes,    highlightedRouteId,    removePlanLayers,
   ]);
 
   return (
@@ -577,3 +601,4 @@ export function MapView({
     />
   );
 }
+);
