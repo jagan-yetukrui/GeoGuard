@@ -6,6 +6,7 @@ import { QuakeSidebar } from "@/components/QuakeSidebar";
 import { DisasterChat } from "@/components/DisasterChat";
 import { VoiceAgentBubble } from "@/components/VoiceAgentBubble";
 import { VoiceAssistantPopup } from "@/components/VoiceAssistantPopup";
+import { LoadingScreen } from "@/components/LoadingScreen";
 import { mockQuakeEvent } from "@/lib/mockData";
 import { getLiveQuake, getLatestQuakes, generatePlan, getBrief, getVoice } from "@/lib/api";
 import type { QuakeEvent, ResponsePlan } from "@/lib/types";
@@ -135,7 +136,9 @@ export default function Home() {
   }, []);
 
   return (
-    <main className="flex h-full min-h-screen w-full flex-col lg:flex-row">
+    <>
+      <LoadingScreen />
+      <main className="flex h-full min-h-screen w-full flex-col lg:flex-row">
       <div className="h-[40vh] w-full shrink-0 lg:h-full lg:w-[70%] lg:min-w-0 lg:p-4">
         <MapView
           quake={selectedQuake}
@@ -189,6 +192,7 @@ export default function Home() {
         anchorBottom={100}
         anchorRight={88}
       />
-    </main>
+      </main>
+    </>
   );
 }

@@ -66,19 +66,19 @@ export function QuakeSidebar({
   return (
     <aside className="flex h-full w-full flex-col gap-4 overflow-y-auto p-6">
       <div className="flex items-center gap-4">
-        <div className="flex size-24 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-border/50">
+        <div className="flex size-32 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-border/50">
           <Image
             src="/logo.png"
             alt="GeoGuard"
-            width={96}
-            height={96}
-            className="size-full object-contain p-1"
+            width={256}
+            height={256}
+            className="size-full object-cover"
             priority
           />
         </div>
-        <div>
+        <div className="flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-xl font-bold tracking-tight">
+            <h1 className="text-3xl font-bold tracking-tight leading-tight">
               <span className="text-blue-600">Geo</span>
               <span className="text-emerald-600">Guard</span>
             </h1>
@@ -93,16 +93,16 @@ export function QuakeSidebar({
       </div>
 
       {onSwitchToLive && onSwitchToLast5 && (
-        <div className="flex items-center gap-2">
-          <div className="flex rounded-lg border border-border bg-muted/30 p-0.5">
+        <div className="flex items-center justify-center gap-2">
+          <div className="flex rounded-lg border border-border bg-blue-100 p-0.5">
             <button
               type="button"
               onClick={onSwitchToLive}
               className={cn(
                 "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
                 viewMode === "live"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "text-gray-600 hover:text-blue-600 hover:bg-blue-50"
               )}
             >
               <Zap className="size-3.5" />
@@ -114,8 +114,8 @@ export function QuakeSidebar({
               className={cn(
                 "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
                 viewMode === "last5"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "text-gray-600 hover:text-blue-600 hover:bg-blue-50"
               )}
             >
               <List className="size-3.5" />
@@ -127,7 +127,7 @@ export function QuakeSidebar({
               type="button"
               onClick={onRefreshQuakes}
               disabled={quakeLoading}
-              className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
+              className="rounded-md p-1.5 text-blue-600 hover:bg-blue-50 hover:text-blue-800 disabled:opacity-50 transition-colors"
               title="Refresh quakes"
             >
               <RefreshCw className={cn("size-4", quakeLoading && "animate-spin")} />
@@ -137,12 +137,12 @@ export function QuakeSidebar({
       )}
 
       {viewMode === "last5" && latestQuakes.length > 0 && onSelectQuake && (
-        <Card className="rounded-2xl border border-border shadow-sm">
+        <Card className="rounded-2xl border-2 border-green-200 shadow-sm bg-gradient-to-br from-green-50 to-white">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Latest 5</CardTitle>
+            <CardTitle className="text-sm font-medium text-green-900">Latest 5</CardTitle>
           </CardHeader>
           <CardContent className="space-y-1 p-6 pt-0">
-            <ul className="max-h-40 space-y-1 overflow-y-auto">
+            <ul className="space-y-1">
               {latestQuakes.map((q) => (
                 <li key={q.id}>
                   <button
@@ -175,10 +175,10 @@ export function QuakeSidebar({
         </Card>
       )}
 
-      <Card className="rounded-2xl border border-border shadow-sm">
+      <Card className="rounded-2xl border-2 border-blue-200 shadow-sm bg-gradient-to-br from-blue-50 to-white">
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">
-            {viewMode === "live" ? "Live event" : "Selected event"}
+          <CardTitle className="text-sm font-medium text-blue-900">
+            {viewMode === "live" ? "Live Event" : "Selected Event"}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 p-6 pt-0 text-sm">
@@ -204,9 +204,9 @@ export function QuakeSidebar({
         </CardContent>
       </Card>
 
-      <Card className="rounded-2xl border border-border shadow-sm">
+      <Card className="rounded-2xl border-2 border-amber-200 shadow-sm bg-gradient-to-br from-amber-50 to-white">
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">Risk Summary</CardTitle>
+          <CardTitle className="text-sm font-medium text-amber-900">Risk Summary</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2 p-6 pt-0">
           {riskZones.length > 0 ? (
@@ -241,7 +241,7 @@ export function QuakeSidebar({
 
       <div className="flex flex-col gap-2">
         <Button
-          className="w-full rounded-xl"
+          className="w-full rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold"
           onClick={onGeneratePlan}
           disabled={isGenerating}
         >
