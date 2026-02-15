@@ -70,7 +70,7 @@ def _parse_element(el: dict, osm_type: str) -> dict[str, Any] | None:
     else:
         center = el.get("center", {})
         lat = center.get("lat")
-        lng = center.get("lng")
+        lng = center.get("lon") or center.get("lng")  # Overpass uses "lon"
     if lat is None or lng is None:
         return None
     tags = el.get("tags") or {}
@@ -103,7 +103,7 @@ def _parse_park_element(el: dict, osm_type: str) -> dict[str, Any] | None:
     else:
         center = el.get("center", {})
         lat = center.get("lat")
-        lng = center.get("lng")
+        lng = center.get("lon") or center.get("lng")  # Overpass uses "lon"
     if lat is None or lng is None:
         return None
     tags = el.get("tags") or {}
@@ -284,7 +284,7 @@ def fetch_building_points(lat: float, lng: float, half_km: float = 40.0) -> tupl
         else:
             center = el.get("center", {})
             lat_v = center.get("lat")
-            lng_v = center.get("lng")
+            lng_v = center.get("lon") or center.get("lng")
         if lat_v is not None and lng_v is not None:
             points.append((float(lat_v), float(lng_v)))
     _cache[key] = (points, True)
@@ -350,7 +350,10 @@ def _assign_points_to_cells(
     for clat, clng in centers:
         key = (round(clat, 5), round(clng, 5))
         counts[key] = 0.0
-    for plat, plng in points:
+    for pt in points:
+        if len(pt) < 2:
+            continue
+        plat, plng = pt[0], pt[1]
         min_d = float("inf")
         best_key = None
         for clat, clng in centers:

@@ -147,7 +147,7 @@ def plan(body: PlanBody):
     from app.usgs import get_quake_by_id
     from app.historical import find_similar_quakes
     from app.grid import compute_risk_grid, RESOLUTION_KM, _cell_centers
-    from app.polygonize import polygonize as polygonize_grid
+    from app.circularize import circular_zones_geojson
     from app.overpass import fetch_infra_nodes, get_density_proxy, get_density_per_cell
 
     q = get_quake_by_id(body.quake_id)
@@ -164,6 +164,18 @@ def plan(body: PlanBody):
         plate_km = min(plate_km, 20000.0)
     motion_proxy = get_plate_motion_proxy(plate_km)
     infra_nodes_list, infra_ok = fetch_infra_nodes(lat, lng)
+    # Merge Google Places (hospital, fire_station, police, shelter) when available
+    from app.places import fetch_places_infra
+    places_list, places_ok = fetch_places_infra(lat, lng, radius_km=50.0)
+    if places_ok and places_list:
+        seen = {(round(n["lat"], 5), round(n["lng"], 5)) for n in infra_nodes_list}
+        for p in places_list:
+            if p.get("type") in ("hospital", "fire_station", "police", "shelter"):
+                key = (round(p["lat"], 5), round(p["lng"], 5))
+                if key not in seen:
+                    seen.add(key)
+                    infra_nodes_list.append({"name": p["name"], "type": p["type"], "lat": p["lat"], "lng": p["lng"]})
+        infra_nodes_list.sort(key=lambda n: (n["lat"], n["lng"]))
     from app.landmask import filter_land_points
     infra_nodes_list = filter_land_points(infra_nodes_list, lat_key="lat", lng_key="lng")
     infra_count = len(infra_nodes_list)
@@ -188,14 +200,15 @@ def plan(body: PlanBody):
         grid_explanation["density_method"] = "overpass_infra_count"
     else:
         grid_explanation["density_method"] = "placeholder"
-    zones_geojson, _safe_points_list = polygonize_grid(cells, RESOLUTION_KM)
-    # Only real locations are shown; grid-derived safe points are not real POIs, so return none
-    safe_points_out: list[SafePointOut] = []
 
     zones, explanation_zoning = _plan_zoning_fallback(mag, depth_km, plate_km, lat, lng, motion_proxy)
     high_km = next(z["radius_km"] for z in zones if z["level"] == "high")
     med_km = next(z["radius_km"] for z in zones if z["level"] == "medium")
     low_km = next(z["radius_km"] for z in zones if z["level"] == "low")
+
+    zones_geojson = circular_zones_geojson(lat, lng, high_km, med_km, low_km)
+    # Only real locations are shown; grid-derived safe points are not real POIs, so return none
+    safe_points_out: list[SafePointOut] = []
 
     zone_pois_dict: dict[str, list[ZonePoiOut]] | None = None
     try:

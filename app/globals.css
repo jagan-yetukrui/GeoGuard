@@ -127,10 +127,27 @@
 }
 
 /* MapView markers (Leaflet) */
-.leaflet-quake-marker,
-.leaflet-station-marker {
+.leaflet-quake-marker {
   background: transparent !important;
   border: none !important;
+}
+.leaflet-station-marker,
+.leaflet-infra-marker,
+.leaflet-zone-poi-marker {
+  background: transparent !important;
+  border: none !important;
+}
+.leaflet-station-marker .station-marker,
+.leaflet-infra-marker .infra-marker,
+.leaflet-zone-poi-marker .zone-poi-marker {
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.leaflet-station-marker .station-marker:hover,
+.leaflet-infra-marker .infra-marker:hover,
+.leaflet-zone-poi-marker .zone-poi-marker:hover {
+  transform: scale(1.08);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
 }
 .quake-marker {
   position: relative;
@@ -155,13 +172,6 @@
   border-radius: 50%;
   background: #ef4444;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-}
-.station-marker {
-  cursor: pointer;
-  color: #2563eb;
-}
-.station-marker:hover {
-  color: #1d4ed8;
 }
 @keyframes quake-pulse {
   0%,
