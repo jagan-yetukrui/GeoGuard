@@ -6,7 +6,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { QuakeSidebarProps } from "@/components/QuakeSidebar.types";
 import { PlanPanel } from "@/components/PlanPanel";
-import { VoiceBar } from "@/components/VoiceBar";
 import type { RiskLevel } from "@/lib/types";
 import { motion, AnimatePresence } from "framer-motion";
 import { Loader2, FileText, PlayCircle, ShieldCheck, Save, List, Zap, RefreshCw } from "lucide-react";
@@ -258,42 +257,6 @@ export function QuakeSidebar({
             </>
           )}
         </Button>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="rounded-xl"
-            onClick={onToggleBriefing}
-            disabled={briefingLoading || !planGenerated}
-          >
-            {briefingLoading ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <PlayCircle className="size-4" />
-            )}
-            {briefingLoading ? "Generating…" : "Play Briefing"}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="rounded-xl"
-            onClick={onVerifyPlan}
-            disabled={!planGenerated}
-          >
-            <ShieldCheck className="size-4" />
-            Verify Plan
-          </Button>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full rounded-xl"
-          onClick={onSavePlan}
-          disabled={!planGenerated}
-        >
-          <Save className="size-4" />
-          {planSaved ? "Saved" : "Save Plan"}
-        </Button>
       </div>
 
       <AnimatePresence mode="wait">
@@ -313,11 +276,6 @@ export function QuakeSidebar({
           <PlanPanel plan={plan} quake={quake} verified={planVerified} />
         )}
       </AnimatePresence>
-
-      <VoiceBar
-        briefingPlaying={briefingPlaying}
-        onToggleBriefing={onToggleBriefing}
-      />
     </aside>
   );
 }

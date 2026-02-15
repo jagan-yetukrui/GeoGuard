@@ -94,18 +94,15 @@ def compute_zone_pois(
     high_km: float,
     med_km: float,
     low_km: float,
+    pre_fetched_infra: list[dict[str, Any]] | None = None,
+    pre_fetched_places: list[dict[str, Any]] | None = None,
 ) -> dict[str, list[dict[str, Any]]]:
     """
-    Fetch POI candidates (Overpass + Google Places), assign to zones by point-in-polygon,
-    apply per-zone type filter. Returns { "high": [...], "medium": [...], "low": [...] }.
-    Each item is { "name", "type", "lat", "lng" }. Does not block on API failure.
+    Assign POI candidates to zones by point-in-polygon, apply per-zone type filter.
+    Returns { "high": [...], "medium": [...], "low": [...] }.
+    If pre_fetched_infra and pre_fetched_places are provided, skips API calls (faster).
     """
-    from app.overpass import fetch_zone_pois_candidates
-    from app.places import fetch_places_infra
-
     result: dict[str, list[dict[str, Any]]] = {"high": [], "medium": [], "low": []}
-    max_radius_km = max(high_km, med_km, low_km, 1.0)
-    half_km = min(max_radius_km, 50.0)  # Overpass bbox half-side
 
     level_polygons: dict[str, Any] = {}
     if zones_geojson and (zones_geojson.get("features")):
@@ -113,26 +110,25 @@ def compute_zone_pois(
     if not level_polygons:
         return result
 
-    # Fetch candidates: Overpass (hospital, shelter, park, open_area) + Google (hospital, shelter, park, open_area)
     candidates: list[dict[str, Any]] = []
     seen: set[tuple[float, float]] = set()
 
-    overpass_list, overpass_ok = fetch_zone_pois_candidates(
-        epicenter_lat, epicenter_lng, half_km
-    )
-    if overpass_ok and overpass_list:
-        for n in overpass_list:
+    # Use pre-fetched data when available (avoids duplicate Overpass + Google calls)
+    if pre_fetched_infra is not None and pre_fetched_places is not None:
+        for n in pre_fetched_infra:
+            t = n.get("type", "")
+            if t in ("hospital", "clinic", "ambulance"):
+                norm = "hospital"
+            elif t == "shelter":
+                norm = "shelter"
+            else:
+                continue
             key = (round(n["lat"], 5), round(n["lng"], 5))
             if key in seen:
                 continue
             seen.add(key)
-            candidates.append({"name": n["name"], "type": n["type"], "lat": n["lat"], "lng": n["lng"]})
-
-    places_list, places_ok = fetch_places_infra(
-        epicenter_lat, epicenter_lng, radius_km=max_radius_km
-    )
-    if places_ok and places_list:
-        for n in places_list:
+            candidates.append({"name": n["name"], "type": norm, "lat": n["lat"], "lng": n["lng"]})
+        for n in pre_fetched_places:
             norm = _normalize_type(n.get("type", ""))
             if norm == "other":
                 continue
@@ -141,6 +137,35 @@ def compute_zone_pois(
                 continue
             seen.add(key)
             candidates.append({"name": n["name"], "type": norm, "lat": n["lat"], "lng": n["lng"]})
+    else:
+        from app.overpass import fetch_zone_pois_candidates
+        from app.places import fetch_places_infra
+
+        max_radius_km = max(high_km, med_km, low_km, 1.0)
+        half_km = min(max_radius_km, 50.0)
+        overpass_list, overpass_ok = fetch_zone_pois_candidates(
+            epicenter_lat, epicenter_lng, half_km
+        )
+        if overpass_ok and overpass_list:
+            for n in overpass_list:
+                key = (round(n["lat"], 5), round(n["lng"], 5))
+                if key in seen:
+                    continue
+                seen.add(key)
+                candidates.append({"name": n["name"], "type": n["type"], "lat": n["lat"], "lng": n["lng"]})
+        places_list, places_ok = fetch_places_infra(
+            epicenter_lat, epicenter_lng, radius_km=max_radius_km
+        )
+        if places_ok and places_list:
+            for n in places_list:
+                norm = _normalize_type(n.get("type", ""))
+                if norm == "other":
+                    continue
+                key = (round(n["lat"], 5), round(n["lng"], 5))
+                if key in seen:
+                    continue
+                seen.add(key)
+                candidates.append({"name": n["name"], "type": norm, "lat": n["lat"], "lng": n["lng"]})
 
     # Assign each candidate to at most one zone (highest risk) and apply type filter; only on-land POIs
     by_zone: dict[str, list[dict[str, Any]]] = {"high": [], "medium": [], "low": []}

@@ -144,11 +144,13 @@ def analyze(body: AnalyzeBody):
 
 @router.post("/plan", response_model=PlanResponse)
 def plan(body: PlanBody):
+    from concurrent.futures import ThreadPoolExecutor, as_completed
     from app.usgs import get_quake_by_id
     from app.historical import find_similar_quakes
     from app.grid import compute_risk_grid, RESOLUTION_KM, _cell_centers
     from app.circularize import circular_zones_geojson
-    from app.overpass import fetch_infra_nodes, get_density_proxy, get_density_per_cell
+    from app.overpass import fetch_infra_nodes, get_density_proxy
+    from app.places import fetch_places_infra
 
     q = get_quake_by_id(body.quake_id)
     if not q:
@@ -163,10 +165,21 @@ def plan(body: PlanBody):
     if plate_km is not None:
         plate_km = min(plate_km, 20000.0)
     motion_proxy = get_plate_motion_proxy(plate_km)
-    infra_nodes_list, infra_ok = fetch_infra_nodes(lat, lng)
-    # Merge Google Places (hospital, fire_station, police, shelter) when available
-    from app.places import fetch_places_infra
-    places_list, places_ok = fetch_places_infra(lat, lng, radius_km=50.0)
+
+    # Run Overpass, Google Places, and historical in parallel
+    infra_nodes_list: list = []
+    infra_ok = False
+    places_list: list = []
+    places_ok = False
+    similar: list = []
+    with ThreadPoolExecutor(max_workers=3) as ex:
+        f_infra = ex.submit(fetch_infra_nodes, lat, lng)
+        f_places = ex.submit(fetch_places_infra, lat, lng, 50.0)
+        f_similar = ex.submit(find_similar_quakes, lat, lng, mag, depth_km, plate_km, 5)
+        infra_nodes_list, infra_ok = f_infra.result()
+        places_list, places_ok = f_places.result()
+        similar = f_similar.result()
+
     if places_ok and places_list:
         seen = {(round(n["lat"], 5), round(n["lng"], 5)) for n in infra_nodes_list}
         for p in places_list:
@@ -180,13 +193,13 @@ def plan(body: PlanBody):
     infra_nodes_list = filter_land_points(infra_nodes_list, lat_key="lat", lng_key="lng")
     infra_count = len(infra_nodes_list)
     density_proxy = get_density_proxy(lat, lng, infra_nodes_list)
-    centers = _cell_centers(lat, lng)
-    density_per_cell, density_method = get_density_per_cell(centers, lat, lng, RESOLUTION_KM)
+    # Skip density_per_cell (2 Overpass calls) for speed; use proxy only
+    density_per_cell = None
+    density_method = ""
     if not infra_ok:
         grid_explanation_note = "infra unavailable (Overpass failed)"
     else:
         grid_explanation_note = None
-    similar = find_similar_quakes(lat, lng, mag, depth_km, plate_km, k=5)
     cells, damage_score, confidence, grid_explanation, factor_breakdown = compute_risk_grid(
         lat, lng, mag, depth_km, plate_km, similar,
         density_proxy=density_proxy, infra_count=infra_count,
@@ -210,11 +223,18 @@ def plan(body: PlanBody):
     # Only real locations are shown; grid-derived safe points are not real POIs, so return none
     safe_points_out: list[SafePointOut] = []
 
+    # Filter infra and places to within green zone (low_km) only
+    from app.utils import haversine_km
+    infra_nodes_list = [n for n in infra_nodes_list if haversine_km(lat, lng, n["lat"], n["lng"]) <= low_km]
+    places_list = [p for p in places_list if haversine_km(lat, lng, p["lat"], p["lng"]) <= low_km]
+
     zone_pois_dict: dict[str, list[ZonePoiOut]] | None = None
     try:
         from app.zone_pois import compute_zone_pois
         raw_zone_pois = compute_zone_pois(
-            zones_geojson, lat, lng, high_km, med_km, low_km
+            zones_geojson, lat, lng, high_km, med_km, low_km,
+            pre_fetched_infra=infra_nodes_list,
+            pre_fetched_places=places_list,
         )
         zone_pois_dict = {
             level: [ZonePoiOut(name=p["name"], type=p["type"], lat=p["lat"], lng=p["lng"], zone_level=level) for p in raw_zone_pois[level]]

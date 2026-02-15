@@ -29,7 +29,7 @@ def _bbox_around(lat: float, lng: float, half_km: float = 40.0) -> tuple[float, 
 
 def _build_infra_query(south: float, west: float, north: float, east: float) -> str:
     return f"""
-[out:json][timeout:25];
+[out:json][timeout:12];
 (
   node({south},{west},{north},{east})["amenity"="hospital"];
   node({south},{west},{north},{east})["amenity"="clinic"];
@@ -49,7 +49,7 @@ out center;
 def _build_parks_open_query(south: float, west: float, north: float, east: float) -> str:
     """Parks and open areas: leisure=park, landuse=grass, landuse=recreation_ground."""
     return f"""
-[out:json][timeout:25];
+[out:json][timeout:12];
 (
   node({south},{west},{north},{east})["leisure"="park"];
   node({south},{west},{north},{east})["landuse"="grass"];
@@ -138,7 +138,7 @@ def fetch_zone_pois_candidates(
     # 1) Infra: hospital, clinic, ambulance -> hospital; shelter -> shelter; drop fire_station/police for zone POIs
     try:
         query_infra = _build_infra_query(south, west, north, east)
-        with httpx.Client(timeout=30.0) as client:
+        with httpx.Client(timeout=15.0) as client:
             r = client.post(OVERPASS_URL, content=query_infra)
             r.raise_for_status()
             data = r.json()
@@ -163,7 +163,7 @@ def fetch_zone_pois_candidates(
     # 2) Parks and open areas
     try:
         query_parks = _build_parks_open_query(south, west, north, east)
-        with httpx.Client(timeout=30.0) as client:
+        with httpx.Client(timeout=15.0) as client:
             r = client.post(OVERPASS_URL, content=query_parks)
             r.raise_for_status()
             data = r.json()
@@ -200,7 +200,7 @@ def fetch_infra_nodes(lat: float, lng: float) -> tuple[list[dict[str, Any]], boo
         return _cache[key], True
     try:
         query = _build_infra_query(south, west, north, east)
-        with httpx.Client(timeout=30.0) as client:
+        with httpx.Client(timeout=15.0) as client:
             r = client.post(OVERPASS_URL, content=query)
             r.raise_for_status()
             data = r.json()
@@ -267,7 +267,7 @@ def fetch_building_points(lat: float, lng: float, half_km: float = 40.0) -> tupl
         return _cache[key], True
     try:
         query = _build_building_query(south, west, north, east)
-        with httpx.Client(timeout=25.0) as client:
+        with httpx.Client(timeout=15.0) as client:
             r = client.post(OVERPASS_URL, content=query)
             r.raise_for_status()
             data = r.json()
@@ -305,7 +305,7 @@ def fetch_highway_points(lat: float, lng: float, half_km: float = 40.0) -> tuple
         return _cache[key], True
     try:
         query = _build_highway_query(south, west, north, east)
-        with httpx.Client(timeout=25.0) as client:
+        with httpx.Client(timeout=15.0) as client:
             r = client.post(OVERPASS_URL, content=query)
             r.raise_for_status()
             data = r.json()

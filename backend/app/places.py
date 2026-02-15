@@ -3,6 +3,7 @@ Google Places API (Nearby Search): fetch real locations (hospitals, shelters, et
 Requires GOOGLE_MAPS_API_KEY. Returns same shape as Overpass infra: {name, type, lat, lng}.
 """
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
 import httpx
@@ -72,6 +73,7 @@ def fetch_places_infra(lat: float, lng: float, radius_km: float = 50.0) -> tuple
     Fetch hospitals, fire stations, police, and shelters from Google Places Nearby Search.
     Returns (list of {name, type, lat, lng}, success).
     When GOOGLE_MAPS_API_KEY is not set, returns ([], False).
+    Runs all 6 place-type searches in parallel for speed.
     """
     api_key = (os.environ.get("GOOGLE_MAPS_API_KEY") or os.environ.get("PLACES_API_KEY") or "").strip()
     if not api_key:
@@ -79,14 +81,22 @@ def fetch_places_infra(lat: float, lng: float, radius_km: float = 50.0) -> tuple
     radius_m = int(radius_km * 1000)
     seen: set[tuple[float, float]] = set()
     merged: list[dict[str, Any]] = []
-    for place_type, keyword, our_type in SEARCHES:
+
+    def _one_search(args: tuple) -> list[dict[str, Any]]:
+        place_type, keyword, our_type = args
         items = _fetch_nearby(lat, lng, radius_m, place_type, keyword, api_key)
         for n in items:
             n["type"] = our_type
-            key = (round(n["lat"], 5), round(n["lng"], 5))
-            if key in seen:
-                continue
-            seen.add(key)
-            merged.append(n)
+        return items
+
+    with ThreadPoolExecutor(max_workers=6) as ex:
+        futures = {ex.submit(_one_search, s): s for s in SEARCHES}
+        for future in as_completed(futures):
+            for n in future.result():
+                key = (round(n["lat"], 5), round(n["lng"], 5))
+                if key in seen:
+                    continue
+                seen.add(key)
+                merged.append(n)
     merged.sort(key=lambda x: (x["lat"], x["lng"]))
     return merged, True
