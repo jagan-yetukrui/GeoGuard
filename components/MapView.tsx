@@ -18,6 +18,7 @@ import {
   bboxAround,
   clipGeoJSONToBbox,
 } from "@/lib/mapUtils";
+import { getInfraIcon } from "@/lib/mapIcons";
 
 export type MapViewProps = {
   quake: QuakeEvent;
@@ -69,26 +70,48 @@ const ZONE_POI_TYPE_LABELS: Record<string, string> = {
   open_area: "Open area",
 };
 
+const INFRA_TYPE_LABELS: Record<string, string> = {
+  hospital: "Hospital",
+  clinic: "Clinic",
+  ambulance: "Ambulance",
+  fire_station: "Fire station",
+  police: "Police station",
+  shelter: "Shelter",
+  park: "Park",
+  open_area: "Open area",
+};
+
 const ZONE_POI_ZONE_LABELS: Record<string, string> = {
   high: "Red zone",
   medium: "Yellow zone",
   low: "Green zone",
 };
 
-function createZonePoiMarkerElement(zoneLevel: "high" | "medium" | "low"): HTMLDivElement {
-  const colors: Record<string, string> = {
+function createZonePoiMarkerElement(
+  poiType: string,
+  zoneLevel: "high" | "medium" | "low"
+): HTMLDivElement {
+  const zoneColors: Record<string, string> = {
     high: "#ef4444",
     medium: "#f59e0b",
     low: "#10b981",
   };
+  const borderColor = zoneColors[zoneLevel] ?? zoneColors.low;
   const el = document.createElement("div");
   el.className = "zone-poi-marker";
-  el.style.width = "14px";
-  el.style.height = "14px";
-  el.style.borderRadius = "50%";
-  el.style.background = colors[zoneLevel] ?? colors.low;
-  el.style.border = `2px solid ${colors[zoneLevel] ?? colors.low}`;
-  el.style.boxShadow = "0 1px 2px rgba(0,0,0,0.3)";
+  el.style.width = "28px";
+  el.style.height = "28px";
+  el.style.borderRadius = "6px";
+  el.style.background = "white";
+  el.style.border = `2px solid ${borderColor}`;
+  el.style.boxShadow = "0 2px 4px rgba(0,0,0,0.2)";
+  el.style.display = "flex";
+  el.style.alignItems = "center";
+  el.style.justifyContent = "center";
+  el.style.padding = "2px";
+  el.innerHTML = getInfraIcon(poiType)
+    .replace('width="24"', 'width="20"')
+    .replace('height="24"', 'height="20"');
   return el;
 }
 
@@ -102,15 +125,22 @@ function createQuakeMarkerElement(): HTMLDivElement {
   return el;
 }
 
-function createStationMarkerElement(): HTMLDivElement {
+function createStationMarkerElement(type: string): HTMLDivElement {
   const el = document.createElement("div");
   el.className = "station-marker";
-  el.innerHTML = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M18 8c0 4.5-6 12-6 12s-6-7.5-6-12a6 6 0 0 1 12 0"/>
-      <circle cx="12" cy="8" r="2"/>
-    </svg>
-  `;
+  el.style.width = "36px";
+  el.style.height = "36px";
+  el.style.borderRadius = "8px";
+  el.style.background = "white";
+  el.style.border = "2px solid #2563eb";
+  el.style.boxShadow = "0 2px 8px rgba(0,0,0,0.2)";
+  el.style.display = "flex";
+  el.style.alignItems = "center";
+  el.style.justifyContent = "center";
+  el.style.padding = "4px";
+  el.innerHTML = getInfraIcon(type)
+    .replace('width="24"', 'width="24"')
+    .replace('height="24"', 'height="24"');
   return el;
 }
 
@@ -128,11 +158,19 @@ function createSafePointElement(): HTMLDivElement {
 function createInfraMarkerElement(type: string): HTMLDivElement {
   const el = document.createElement("div");
   el.className = "infra-marker";
-  el.innerHTML = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-    </svg>
-  `;
+  el.style.width = "32px";
+  el.style.height = "32px";
+  el.style.borderRadius = "8px";
+  el.style.background = "white";
+  el.style.border = "2px solid #e5e7eb";
+  el.style.boxShadow = "0 2px 6px rgba(0,0,0,0.15)";
+  el.style.display = "flex";
+  el.style.alignItems = "center";
+  el.style.justifyContent = "center";
+  el.style.padding = "4px";
+  el.innerHTML = getInfraIcon(type)
+    .replace('width="24"', 'width="22"')
+    .replace('height="24"', 'height="22"');
   return el;
 }
 
@@ -410,11 +448,12 @@ export function MapView({
         icon: L.divIcon({
           html: el.outerHTML,
           className: "leaflet-infra-marker",
-          iconSize: [20, 20],
-          iconAnchor: [10, 20],
+        iconSize: [32, 32],
+        iconAnchor: [16, 32],
         }),
       }).addTo(map);
-      marker.bindTooltip(`<strong>${node.name}</strong><br/>${node.type}`, {
+      const typeLabel = INFRA_TYPE_LABELS[node.type] ?? node.type;
+      marker.bindTooltip(`<strong>${node.name}</strong><br/>${typeLabel}`, {
         direction: "top",
         opacity: 0.95,
       });
@@ -424,13 +463,13 @@ export function MapView({
     (["high", "medium", "low"] as const).forEach((level) => {
       const list = zonePois?.[level] ?? [];
       list.forEach((poi) => {
-        const el = createZonePoiMarkerElement(poi.zoneLevel);
+        const el = createZonePoiMarkerElement(poi.type, poi.zoneLevel);
         const marker = L.marker([poi.lat, poi.lng], {
           icon: L.divIcon({
             html: el.outerHTML,
             className: "leaflet-zone-poi-marker",
-            iconSize: [14, 14],
-            iconAnchor: [7, 7],
+            iconSize: [28, 28],
+            iconAnchor: [14, 14],
           }),
         }).addTo(map);
         const typeLabel = ZONE_POI_TYPE_LABELS[poi.type] ?? poi.type;
@@ -458,7 +497,7 @@ export function MapView({
     });
 
     stations.forEach((station) => {
-      const el = createStationMarkerElement();
+      const el = createStationMarkerElement(station.type);
       const reason = STATION_TYPE_LABELS[station.type] ?? station.type;
       const marker = L.marker([station.coordinates.lat, station.coordinates.lng], {
         icon: L.divIcon({

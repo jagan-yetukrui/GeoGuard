@@ -50,6 +50,15 @@ class Settings(BaseSettings):
     elevenlabs_api_key: str | None = None
     elevenlabs_voice_id: str = "21m00Tcm4TlvDq8ikWAM"  # Rachel; override via ELEVENLABS_VOICE_ID
 
+    # Snowflake (optional; set in .env to avoid "extra forbidden" when .env has SNOWFLAKE_*)
+    snowflake_user: str | None = None
+    snowflake_password: str | None = None
+    snowflake_account: str | None = None
+    snowflake_warehouse: str = "COMPUTE_WH"
+    snowflake_database: str = "EARTHQUAKE_PROJECT"
+    snowflake_schema: str = "RAW_DATA"
+    snowflake_default_table: str | None = None
+
     class Config:
         env_file = str(_ENV_FILE) if _ENV_FILE.exists() else ".env"
         env_file_encoding = "utf-8"
