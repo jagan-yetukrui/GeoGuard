@@ -29,7 +29,7 @@ def _bbox_around(lat: float, lng: float, half_km: float = 40.0) -> tuple[float, 
 
 def _build_infra_query(south: float, west: float, north: float, east: float) -> str:
     return f"""
-[out:json][timeout:12];
+[out:json][timeout:15];
 (
   node({south},{west},{north},{east})["amenity"="hospital"];
   node({south},{west},{north},{east})["amenity"="clinic"];
@@ -37,10 +37,13 @@ def _build_infra_query(south: float, west: float, north: float, east: float) -> 
   node({south},{west},{north},{east})["amenity"="fire_station"];
   node({south},{west},{north},{east})["amenity"="police"];
   node({south},{west},{north},{east})["amenity"="shelter"];
+  node({south},{west},{north},{east})["social_facility"="shelter"];
   way({south},{west},{north},{east})["amenity"="hospital"];
   way({south},{west},{north},{east})["amenity"="clinic"];
   way({south},{west},{north},{east})["amenity"="fire_station"];
   way({south},{west},{north},{east})["amenity"="police"];
+  way({south},{west},{north},{east})["amenity"="shelter"];
+  way({south},{west},{north},{east})["social_facility"="shelter"];
 );
 out center;
 """
@@ -77,6 +80,7 @@ def _parse_element(el: dict, osm_type: str) -> dict[str, Any] | None:
     name = tags.get("name") or tags.get("brand") or "Unnamed"
     amenity = tags.get("amenity", "")
     emergency = tags.get("emergency", "")
+    social_facility = tags.get("social_facility", "")
     if amenity == "hospital":
         type_ = "hospital"
     elif amenity == "clinic":
@@ -87,10 +91,10 @@ def _parse_element(el: dict, osm_type: str) -> dict[str, Any] | None:
         type_ = "fire_station"
     elif amenity == "police":
         type_ = "police"
-    elif amenity == "shelter":
+    elif amenity == "shelter" or social_facility == "shelter":
         type_ = "shelter"
     else:
-        type_ = amenity or "other"
+        type_ = amenity or social_facility or "other"
     return {"name": str(name)[:100], "type": type_, "lat": float(lat), "lng": float(lng)}
 
 
@@ -193,39 +197,46 @@ def fetch_infra_nodes(lat: float, lng: float) -> tuple[list[dict[str, Any]], boo
     Fetch infrastructure nodes in ~80km box around (lat, lng).
     Returns (list of {name, type, lat, lng}, success).
     On failure returns ([], False); explanation should note infra unavailable.
+    If first attempt returns empty, retries with larger 120km box for sparse areas.
     """
     global _cache, _cache_time
-    south, west, north, east = _bbox_around(lat, lng, 40.0)
-    key = f"{south:.4f},{west:.4f},{north:.4f},{east:.4f}"
-    now = time.monotonic()
-    if key in _cache and (now - _cache_time) < CACHE_TTL_SECONDS:
-        return _cache[key], True
-    try:
-        query = _build_infra_query(south, west, north, east)
-        with httpx.Client(timeout=15.0) as client:
-            r = client.post(OVERPASS_URL, content=query)
-            r.raise_for_status()
-            data = r.json()
-    except (httpx.HTTPError, ValueError, KeyError):
-        return [], False
-    nodes: list[dict[str, Any]] = []
-    seen = set()
-    for el in data.get("elements", []):
-        osm_type = el.get("type", "node")
-        parsed = _parse_element(el, osm_type)
-        if not parsed:
+    for half_km in (40.0, 60.0):
+        south, west, north, east = _bbox_around(lat, lng, half_km)
+        key = f"{south:.4f},{west:.4f},{north:.4f},{east:.4f}"
+        now = time.monotonic()
+        if key in _cache and (now - _cache_time) < CACHE_TTL_SECONDS:
+            cached = _cache[key]
+            return cached, True
+        try:
+            query = _build_infra_query(south, west, north, east)
+            with httpx.Client(timeout=15.0) as client:
+                r = client.post(OVERPASS_URL, content=query)
+                r.raise_for_status()
+                data = r.json()
+        except (httpx.HTTPError, ValueError, KeyError):
+            if half_km == 60.0:
+                return [], False
             continue
-        key_pt = (round(parsed["lat"], 5), round(parsed["lng"], 5))
-        if key_pt in seen:
-            continue
-        seen.add(key_pt)
-        nodes.append(parsed)
-    from app.utils import dedupe_medical_same_location
-    nodes = dedupe_medical_same_location(nodes)
-    nodes.sort(key=lambda n: (n["lat"], n["lng"]))
-    _cache[key] = nodes
-    _cache_time = now
-    return nodes, True
+        nodes: list[dict[str, Any]] = []
+        seen = set()
+        for el in data.get("elements", []):
+            osm_type = el.get("type", "node")
+            parsed = _parse_element(el, osm_type)
+            if not parsed:
+                continue
+            key_pt = (round(parsed["lat"], 5), round(parsed["lng"], 5))
+            if key_pt in seen:
+                continue
+            seen.add(key_pt)
+            nodes.append(parsed)
+        from app.utils import dedupe_medical_same_location
+        nodes = dedupe_medical_same_location(nodes)
+        nodes.sort(key=lambda n: (n["lat"], n["lng"]))
+        _cache[key] = nodes
+        _cache_time = now
+        if nodes or half_km == 60.0:
+            return nodes, True
+    return [], False
 
 
 def fetch_infra_in_bbox(

@@ -571,9 +571,13 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
       stationMarkersRef.current.push(marker);
     });
 
-    // Fit bounds to quake + zones + stations only (never plate boundaries)
+    // Fit bounds to quake + zones + stations + infra + zone POIs (ensure all markers visible)
     const bounds = L.latLngBounds(center as [number, number], center as [number, number]);
     stations.forEach((s) => bounds.extend([s.coordinates.lat, s.coordinates.lng]));
+    (infraNodes ?? []).forEach((n) => bounds.extend([n.lat, n.lng]));
+    (["high", "medium", "low"] as const).forEach((level) => {
+      (zonePois?.[level] ?? []).forEach((p) => bounds.extend([p.lat, p.lng]));
+    });
     if (zoneGeoJSONRef.current) {
       try {
         bounds.extend(zoneGeoJSONRef.current.getBounds());
