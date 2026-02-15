@@ -94,7 +94,7 @@ export function DisasterChat({ selectedQuake, plan, onOpenChange }: DisasterChat
         variant="default"
         size="icon"
         className={cn(
-          "fixed bottom-6 right-6 z-50 size-14 rounded-full shadow-lg transition-all",
+          "fixed bottom-6 right-6 z-50 size-14 rounded-full shadow-lg shadow-primary/20 transition-all duration-200 hover:shadow-xl hover:shadow-primary/25",
           open && "scale-0 opacity-0 pointer-events-none"
         )}
         onClick={() => setOpenAndNotify(true)}
@@ -105,13 +105,13 @@ export function DisasterChat({ selectedQuake, plan, onOpenChange }: DisasterChat
 
       <div
         className={cn(
-          "fixed bottom-6 right-6 z-50 flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-xl transition-all duration-200",
+          "fixed bottom-6 right-6 z-50 flex flex-col overflow-hidden rounded-2xl border border-border/80 bg-card/95 backdrop-blur-sm shadow-xl transition-all duration-200",
           "w-[min(420px,calc(100vw-3rem))]",
           open ? "h-[min(520px,70vh)] opacity-100" : "h-0 w-0 min-w-0 opacity-0 pointer-events-none"
         )}
       >
-        <div className="flex shrink-0 items-center justify-between border-b border-border bg-muted/50 px-4 py-3">
-          <span className="font-semibold text-foreground">911-style disaster assistant</span>
+        <div className="flex shrink-0 items-center justify-between border-b border-border/80 bg-muted/40 px-4 py-3">
+          <span className="font-semibold text-foreground">911-style disaster assistant <span className="text-rose-500/80">💕</span></span>
           <Button
             type="button"
             variant="ghost"
@@ -129,7 +129,7 @@ export function DisasterChat({ selectedQuake, plan, onOpenChange }: DisasterChat
         >
           {messages.length === 0 && (
             <p className="text-muted-foreground text-sm text-center py-4">
-              Ask about the current event, evacuation, first aid, or next steps. Answers use this quake and plan data.
+              Ask about the current event, evacuation, first aid, or next steps. Answers use this quake and plan data. 💕
             </p>
           )}
           {messages.map((m) => (
@@ -164,7 +164,7 @@ export function DisasterChat({ selectedQuake, plan, onOpenChange }: DisasterChat
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && send()}
             placeholder="Ask a question…"
-            className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+            className="flex-1 rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring focus:border-primary/50"
             disabled={sending}
           />
           <Button

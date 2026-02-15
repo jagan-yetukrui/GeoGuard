@@ -2,6 +2,7 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useState } from "react";
+import { Heart } from "lucide-react";
 
 export function LoadingScreen() {
   const [isVisible, setIsVisible] = useState(true);
@@ -39,9 +40,31 @@ export function LoadingScreen() {
           initial={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.4, ease: "easeOut" }}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-white pointer-events-auto"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-background bg-mesh pointer-events-auto overflow-hidden"
         >
-          <div className="flex flex-col items-center gap-8 w-80">
+          {/* Floating hearts decoration */}
+          <div className="absolute inset-0 pointer-events-none overflow-hidden">
+            {[
+              { left: "10%", top: "15%" },
+              { left: "85%", top: "20%" },
+              { left: "25%", top: "75%" },
+              { left: "75%", top: "80%" },
+              { left: "50%", top: "10%" },
+              { left: "5%", top: "50%" },
+              { left: "92%", top: "45%" },
+            ].map((pos, i) => (
+              <motion.div
+                key={i}
+                className="absolute text-rose-300/35"
+                style={{ left: pos.left, top: pos.top }}
+                animate={{ y: [0, -10, 0], opacity: [0.25, 0.5, 0.25] }}
+                transition={{ duration: 2.5 + i * 0.2, repeat: Infinity, delay: i * 0.15 }}
+              >
+                <Heart className="size-5 fill-current" />
+              </motion.div>
+            ))}
+          </div>
+          <div className="flex flex-col items-center gap-8 w-80 relative z-10">
             {/* GeoGuard Logo and Title */}
             <motion.div
               initial={{ opacity: 0, y: -20 }}
@@ -50,40 +73,42 @@ export function LoadingScreen() {
               className="text-center"
             >
               <h1 className="text-4xl font-bold tracking-tight">
-                <span className="text-blue-600">Geo</span>
-                <span className="text-emerald-600">Guard</span>
+                <span className="bg-gradient-to-r from-primary to-cyan-500 bg-clip-text text-transparent">Geo</span>
+                <span className="bg-gradient-to-r from-emerald-500 to-teal-500 bg-clip-text text-transparent">Guard</span>
               </h1>
-              <p className="text-gray-600 text-sm mt-2">Real-Time Emergency Response</p>
+              <p className="text-muted-foreground text-sm mt-2 font-medium">Real-Time Emergency Response</p>
+              <p className="text-rose-400/80 text-xs mt-1">Protecting what you love 💕</p>
             </motion.div>
 
             {/* Progress Bar */}
             <div className="w-full space-y-3">
-              <div className="h-1 bg-gray-200 rounded-full overflow-hidden">
+              <div className="h-1.5 bg-muted rounded-full overflow-hidden">
                 <motion.div
                   initial={{ width: "0%" }}
                   animate={{ width: `${progress}%` }}
                   transition={{ duration: 0.3, ease: "easeOut" }}
-                  className="h-full bg-gradient-to-r from-blue-600 to-emerald-600"
+                  className="h-full bg-gradient-to-r from-primary via-rose-500 to-emerald-500"
                 />
               </div>
-              <p className="text-xs text-gray-500 text-center font-medium">
-                {progress < 100 ? "Loading..." : "Ready"}
+              <p className="text-xs text-muted-foreground text-center font-medium">
+                {progress < 100 ? "Loading..." : "Ready 💕"}
               </p>
             </div>
 
-            {/* Animated dots */}
-            <div className="flex gap-1.5">
+            {/* Animated hearts */}
+            <div className="flex gap-3">
               {[0, 1, 2].map((i) => (
                 <motion.div
                   key={i}
-                  animate={{ scale: [0.8, 1.2, 0.8], opacity: [0.5, 1, 0.5] }}
+                  animate={{ scale: [0.9, 1.15, 0.9], opacity: [0.6, 1, 0.6] }}
                   transition={{
                     duration: 1.2,
                     repeat: Infinity,
                     delay: i * 0.2,
                   }}
-                  className="w-1.5 h-1.5 rounded-full bg-blue-600"
-                />
+                >
+                  <Heart className="size-4 fill-rose-500 text-rose-500" />
+                </motion.div>
               ))}
             </div>
           </div>

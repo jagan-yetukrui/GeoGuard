@@ -16,7 +16,7 @@ export function VoiceAgentBubble({ onClick, open }: VoiceAgentBubbleProps) {
       variant="default"
       size="icon"
       className={cn(
-        "fixed bottom-6 right-[5.5rem] z-50 size-14 rounded-full shadow-lg transition-all",
+        "fixed bottom-6 right-[5.5rem] z-50 size-14 rounded-full shadow-lg shadow-primary/20 transition-all duration-200 hover:shadow-xl hover:shadow-primary/25",
         open && "scale-0 opacity-0 pointer-events-none"
       )}
       onClick={onClick}

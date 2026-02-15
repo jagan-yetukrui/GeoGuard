@@ -52,7 +52,7 @@ export function SafeRoutesPanel({
   if (routes.length === 0) return null;
 
   return (
-    <Card className="rounded-2xl border border-border shadow-sm">
+    <Card className="rounded-2xl border border-border/80 bg-card/95 shadow-sm card-hover">
       <CardHeader
         className="cursor-pointer select-none p-4"
         onClick={() => setExpanded((e) => !e)}
@@ -85,10 +85,10 @@ export function SafeRoutesPanel({
               <div
                 key={route.id}
                 className={cn(
-                  "flex items-center justify-between gap-2 rounded-lg border p-3 transition-colors",
+                  "flex items-center justify-between gap-2 rounded-xl border p-3 transition-all duration-200",
                   selectedRouteId === route.id
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:bg-muted/30"
+                    ? "border-primary bg-primary/10 ring-1 ring-primary/20"
+                    : "border-border/80 hover:bg-muted/40"
                 )}
               >
                 <button

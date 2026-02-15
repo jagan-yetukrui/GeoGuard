@@ -137,12 +137,13 @@ function createStationMarkerElement(type: string): HTMLDivElement {
 function createUserLocationElement(): HTMLDivElement {
   const el = document.createElement("div");
   el.className = "user-location-marker";
-  el.style.width = "24px";
-  el.style.height = "24px";
-  el.style.borderRadius = "50%";
-  el.style.background = "rgba(59, 130, 246, 0.3)";
-  el.style.border = "3px solid #2563eb";
-  el.style.boxShadow = "0 0 0 2px white";
+  el.style.width = "28px";
+  el.style.height = "28px";
+  el.style.display = "flex";
+  el.style.alignItems = "center";
+  el.style.justifyContent = "center";
+  el.style.filter = "drop-shadow(0 1px 2px rgba(0,0,0,0.3))";
+  el.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="#ec4899" stroke="#be185d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>`;
   return el;
 }
 
@@ -405,7 +406,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
           iconAnchor: [12, 12],
         }),
       }).addTo(map);
-      marker.bindTooltip("Your location", { direction: "top", permanent: false });
+      marker.bindTooltip("Your location 💕", { direction: "top", permanent: false });
       userLocationMarkerRef.current = marker;
     }
     return () => {
@@ -470,7 +471,12 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
       });
     }
 
-    (safePoints ?? []).forEach((p) => {
+    const safePointsFiltered = (safePoints ?? []).filter((p) => {
+      if (!userLocation) return true;
+      const eps = 1e-5; // ~1m - filter safe point at user location
+      return Math.abs(p.lat - userLocation.lat) > eps || Math.abs(p.lng - userLocation.lng) > eps;
+    });
+    safePointsFiltered.forEach((p) => {
       const el = createSafePointElement();
       const marker = L.marker([p.lat, p.lng], {
         icon: L.divIcon({
@@ -535,7 +541,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
       if (route?.waypoints?.length) {
         const latLngs: [number, number][] = route.waypoints.map((w) => [w.lat, w.lng]);
         const polyline = L.polyline(latLngs, {
-          color: "rgba(59, 130, 246, 0.9)",
+          color: "#ec4899",
           weight: 4,
           opacity: 0.9,
         }).addTo(map);
@@ -607,6 +613,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
     zones,
     zonesGeoJSON,
     safePoints,
+    userLocation,
     infraNodes,
     zonePois,
     stations,

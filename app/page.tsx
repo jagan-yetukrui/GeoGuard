@@ -138,7 +138,7 @@ export default function Home() {
   }, []);
 
   return (
-    <main className="flex h-full min-h-screen w-full flex-col lg:flex-row">
+    <main className="flex h-full min-h-screen w-full flex-col lg:flex-row bg-mesh">
       <div className="h-[40vh] w-full shrink-0 lg:h-full lg:w-[70%] lg:min-w-0">
         <MapView
           ref={mapRef}
@@ -155,7 +155,7 @@ export default function Home() {
           userLocation={plan?.userLocation}
         />
       </div>
-      <div className="w-full shrink-0 border-t border-border lg:h-full lg:w-[30%] lg:min-w-[320px] lg:border-l lg:border-t-0">
+      <div className="w-full shrink-0 border-t border-border lg:h-full lg:w-[30%] lg:min-w-[320px] lg:border-l lg:border-t-0 bg-sidebar/80 backdrop-blur-sm shadow-[-4px_0_24px_-4px_rgba(0,0,0,0.06)] valentine-border">
         <QuakeSidebar
           quake={selectedQuake}
           latestQuakes={latestQuakes}

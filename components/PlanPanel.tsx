@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { QuakeEvent, ResponsePlan, RiskLevel } from "@/lib/types";
 import { motion } from "framer-motion";
-import { ShieldCheck, MapPin, Route, ListOrdered, Info } from "lucide-react";
+import { ShieldCheck, MapPin, Route, ListOrdered, Info, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 function RiskBadge({ level }: { level: RiskLevel }) {
@@ -45,8 +45,11 @@ export function PlanPanel({ plan, quake, verified = false }: PlanPanelProps) {
       transition={{ duration: 0.3 }}
       className="space-y-4"
     >
-      <Card className="rounded-2xl border border-border p-6 shadow-sm">
-        <CardHeader className="p-0 pb-4">
+      <Card className="rounded-2xl border border-border/80 bg-card/95 p-6 shadow-sm card-hover overflow-hidden relative">
+        <div className="absolute top-3 right-3 text-rose-200/50">
+          <Heart className="size-8 fill-current" />
+        </div>
+        <CardHeader className="p-0 pb-4 relative">
           <div className="flex flex-wrap items-center gap-2">
             <CardTitle className="text-base">Response Plan</CardTitle>
             <Badge
@@ -67,7 +70,7 @@ export function PlanPanel({ plan, quake, verified = false }: PlanPanelProps) {
           </div>
         </CardHeader>
         <CardContent className="space-y-5 p-0">
-          <p className="rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs font-medium text-amber-800 dark:text-amber-200">
+          <p className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs font-medium text-amber-800 dark:text-amber-200">
             Decision support tool. Not an official evacuation order.
           </p>
           <p className="text-sm leading-relaxed text-muted-foreground">
@@ -75,7 +78,7 @@ export function PlanPanel({ plan, quake, verified = false }: PlanPanelProps) {
           </p>
 
           {hasWhy && (
-            <div className="rounded-xl border border-border bg-muted/30 p-4">
+            <div className="rounded-xl border border-border/80 bg-muted/20 p-4">
               <h4 className="mb-3 flex items-center gap-2 text-sm font-medium">
                 <Info className="size-4 text-muted-foreground" />
                 Why these zones?

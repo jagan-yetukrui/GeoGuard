@@ -169,7 +169,7 @@ export function PatriotAssistantPanel({
   const buttons = mode === "citizen" ? CITIZEN_BUTTONS : RESPONDER_BUTTONS;
 
   return (
-    <Card className="rounded-2xl border border-border shadow-sm">
+    <Card className="rounded-2xl border border-border/80 bg-card/95 shadow-sm card-hover">
       <CardHeader
         className="cursor-pointer select-none p-4"
         onClick={() => setExpanded((e) => !e)}
@@ -185,7 +185,7 @@ export function PatriotAssistantPanel({
       </CardHeader>
       {expanded && (
         <CardContent className="space-y-3 p-4 pt-0">
-          <div className="flex rounded-lg border border-border bg-muted/30 p-0.5">
+          <div className="flex rounded-xl border border-border/80 bg-muted/40 p-0.5">
             <button
               type="button"
               onClick={() => setMode("citizen")}

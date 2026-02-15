@@ -109,7 +109,7 @@ export function ResourceAllocationPanel({ quake, plan }: ResourceAllocationPanel
   const secondaryKeys = result?.secondary_needs ?? ["calories_per_day", "blankets", "mobile_chargers", "radios", "rescue_teams", "ambulances"];
 
   return (
-    <Card className="rounded-2xl border border-border shadow-sm">
+    <Card className="rounded-2xl border border-border/80 bg-card/95 shadow-sm card-hover">
       <CardHeader
         className="cursor-pointer select-none p-4"
         onClick={() => setExpanded((e) => !e)}
